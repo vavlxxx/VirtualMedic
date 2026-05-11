@@ -1,6 +1,6 @@
 from pathlib import Path
+from typing import Any, Literal
 from urllib.parse import urlparse
-from typing import Literal
 
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -183,4 +183,8 @@ class Settings(BaseSettings):
         return self
 
 
-settings = Settings()
+def load_settings(**overrides: Any) -> Settings:
+    return Settings(**overrides)
+
+
+settings = load_settings()
