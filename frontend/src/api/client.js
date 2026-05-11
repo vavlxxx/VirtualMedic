@@ -283,6 +283,13 @@ export const apiClient = {
     })
   },
 
+  deleteMyAvatar() {
+    return request('/auth/me/avatar', {
+      method: 'DELETE',
+      auth: true,
+    })
+  },
+
   changePassword(payload) {
     return request('/auth/change-password', {
       method: 'POST',

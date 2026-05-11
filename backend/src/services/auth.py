@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from base64 import b64encode
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, Request, Response, UploadFile, status
@@ -26,7 +25,7 @@ from src.schemas.auth import (
 )
 from src.schemas.doctor import DoctorQualificationDocumentDTO
 from src.services.base import BaseService
-from src.utils.files import save_doctor_document
+from src.utils.files import build_avatar_url, delete_avatar_file, save_avatar_image, save_doctor_document
 from src.utils.security import (
     create_access_token,
     create_refresh_token,
@@ -42,10 +41,6 @@ from src.utils.security import (
 def _cleanup_files(file_names: list[str]) -> None:
     for file_name in file_names:
         (settings.upload.directory / file_name).unlink(missing_ok=True)
-
-
-ALLOWED_AVATAR_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
-MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024
 
 
 class TokenService(BaseService):
@@ -245,23 +240,36 @@ class AuthService(BaseService):
         return to_user_profile(user)
 
     async def upload_my_avatar(self, current_user: User, avatar: UploadFile) -> UserProfileDTO:
-        content_type = (avatar.content_type or "").lower()
-        if content_type not in ALLOWED_AVATAR_MIME_TYPES:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only JPG, PNG or WEBP images are allowed",
-            )
+        old_avatar_url = current_user.avatar_url
+        file_meta = await save_avatar_image(avatar)
+        new_avatar_url = build_avatar_url(file_meta.stored_file_name)
 
-        content = await avatar.read(MAX_AVATAR_SIZE_BYTES + 1)
-        await avatar.close()
+        current_user.avatar_url = new_avatar_url
+        try:
+            await self.db.commit()
+        except Exception:
+            await self.db.rollback()
+            delete_avatar_file(new_avatar_url)
+            raise
 
-        if not content:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Avatar image is empty")
-        if len(content) > MAX_AVATAR_SIZE_BYTES:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Avatar image must be 2 MB or smaller")
+        delete_avatar_file(old_avatar_url)
 
-        current_user.avatar_url = f"data:{content_type};base64,{b64encode(content).decode('ascii')}"
-        await self.db.commit()
+        user = await self.db.users.get_by_id(current_user.id, *USER_PROFILE_OPTIONS)
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        return to_user_profile(user)
+
+    async def delete_my_avatar(self, current_user: User) -> UserProfileDTO:
+        old_avatar_url = current_user.avatar_url
+        current_user.avatar_url = None
+
+        try:
+            await self.db.commit()
+        except Exception:
+            await self.db.rollback()
+            raise
+
+        delete_avatar_file(old_avatar_url)
 
         user = await self.db.users.get_by_id(current_user.id, *USER_PROFILE_OPTIONS)
         if user is None:

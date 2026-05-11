@@ -31,11 +31,13 @@ async def setup_test_database(tmp_path_factory: pytest.TempPathFactory) -> Async
     app.state.db_sessionmaker = TestingSessionLocal
     original_lifespan = app.router.lifespan_context
     original_upload_directory = settings.upload.directory
+    original_avatar_directory = settings.upload.avatar_directory
     original_cookie_secure = settings.auth.cookie_secure
     original_cookie_domain = settings.auth.cookie_domain
     original_refresh_cookie_path = settings.auth.refresh_cookie_path
 
     settings.upload.directory = tmp_path_factory.mktemp("doctor_documents")
+    settings.upload.avatar_directory = tmp_path_factory.mktemp("avatars")
     settings.auth.cookie_secure = False
     settings.auth.cookie_domain = None
     settings.auth.refresh_cookie_path = "/"
@@ -56,6 +58,7 @@ async def setup_test_database(tmp_path_factory: pytest.TempPathFactory) -> Async
     app.state.db_sessionmaker = original_sessionmaker
     app.router.lifespan_context = original_lifespan
     settings.upload.directory = original_upload_directory
+    settings.upload.avatar_directory = original_avatar_directory
     settings.auth.cookie_secure = original_cookie_secure
     settings.auth.cookie_domain = original_cookie_domain
     settings.auth.refresh_cookie_path = original_refresh_cookie_path

@@ -346,6 +346,25 @@ function AccountPage() {
     }
   }
 
+  const handleAvatarDelete = async () => {
+    if (!auth.user?.avatar_url) {
+      return
+    }
+
+    setAvatarMessage('')
+    setAvatarError('')
+    setIsAvatarSubmitting(true)
+
+    try {
+      await auth.deleteAvatar()
+      setAvatarMessage('Фото профиля удалено.')
+    } catch (error) {
+      setAvatarError(error instanceof ApiError ? error.message : 'Не удалось удалить фото.')
+    } finally {
+      setIsAvatarSubmitting(false)
+    }
+  }
+
   const handlePasswordChange = (field) => (event) => {
     const nextValue = event.target.value
 
@@ -479,6 +498,16 @@ function AccountPage() {
                   disabled={isAvatarSubmitting}
                 >
                   {isAvatarSubmitting ? 'Загружаем фото...' : 'Загрузить фото'}
+                </button>
+                <button
+                  className="vm-icon-button account-avatar-delete"
+                  type="button"
+                  onClick={handleAvatarDelete}
+                  disabled={isAvatarSubmitting || !auth.user.avatar_url}
+                  aria-label="Удалить фото профиля"
+                  title="Удалить фото"
+                >
+                  <span className="material-symbols-outlined" aria-hidden="true">delete</span>
                 </button>
               </div>
               {avatarMessage ? <div className="auth-message auth-message--success">{avatarMessage}</div> : null}

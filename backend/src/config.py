@@ -97,7 +97,9 @@ class CorsSettings(BaseModel):
 
 class UploadSettings(BaseModel):
     directory: Path = BASE_DIR / "uploads" / "doctor_documents"
+    avatar_directory: Path = BASE_DIR / "uploads" / "avatars"
     max_file_size_mb: int = 8
+    avatar_max_file_size_mb: int = 2
     max_files_per_request: int = 10
     allowed_extensions: set[str] = {"pdf", "png", "jpg", "jpeg", "webp"}
     allowed_mime_types: set[str] = {
@@ -106,8 +108,16 @@ class UploadSettings(BaseModel):
         "image/jpeg",
         "image/webp",
     }
+    avatar_allowed_extensions: set[str] = {"png", "jpg", "jpeg", "webp"}
+    avatar_allowed_mime_types: set[str] = {"image/png", "image/jpeg", "image/webp"}
 
-    @field_validator("allowed_extensions", "allowed_mime_types", mode="before")
+    @field_validator(
+        "allowed_extensions",
+        "allowed_mime_types",
+        "avatar_allowed_extensions",
+        "avatar_allowed_mime_types",
+        mode="before",
+    )
     @classmethod
     def parse_collection(cls, value: set[str] | list[str] | str) -> set[str]:
         if isinstance(value, str):
