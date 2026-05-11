@@ -144,6 +144,12 @@ export function AuthProvider({ children }) {
     return profile
   }, [applyAuthenticatedUser])
 
+  const uploadAvatar = useCallback(async (file) => {
+    const profile = await apiClient.uploadMyAvatar(file)
+    applyAuthenticatedUser(profile)
+    return profile
+  }, [applyAuthenticatedUser])
+
   const changePassword = useCallback((payload) => apiClient.changePassword(payload), [])
 
   const contextValue = useMemo(
@@ -155,6 +161,7 @@ export function AuthProvider({ children }) {
       refreshSession,
       loadProfile,
       updateProfile,
+      uploadAvatar,
       changePassword,
       registerPatient,
       hasRole: (...roles) => Boolean(authState.user && roles.includes(authState.user.role)),
@@ -169,6 +176,7 @@ export function AuthProvider({ children }) {
       registerPatient,
       refreshSession,
       updateProfile,
+      uploadAvatar,
     ],
   )
 

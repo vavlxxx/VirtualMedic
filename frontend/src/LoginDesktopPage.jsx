@@ -77,7 +77,7 @@ function LoginDesktopPage() {
   return (
     <VirtualMedicAuthFrame
       title="Вход в систему"
-      subtitle="Введите данные для доступа к платформе. В текущем MVP вход выполняется по username и паролю."
+      subtitle="Введите имя пользователя и пароль, чтобы продолжить работу с VirtualMedic."
     >
       <div className="vm-auth-form">
         {successMessage ? <div className="vm-auth-message is-success">{successMessage}</div> : null}
@@ -102,12 +102,7 @@ function LoginDesktopPage() {
           </label>
 
           <label className="vm-auth-field">
-            <span className="vm-auth-field__label-row">
-              <span className="vm-auth-field__label">Пароль</span>
-              <a className="vm-auth-field__hint-link" href={routes.login}>
-                Забыли пароль?
-              </a>
-            </span>
+            <span className="vm-auth-field__label">Пароль</span>
             <div className="vm-auth-field__control">
               <input
                 className="vm-input"
@@ -133,11 +128,6 @@ function LoginDesktopPage() {
               </button>
             </div>
             {errors.password ? <span className="vm-form-error">{errors.password}</span> : null}
-          </label>
-
-          <label className="vm-checkbox">
-            <input type="checkbox" />
-            Запомнить меня
           </label>
 
           <button className="vm-button" type="submit" disabled={isSubmitting}>

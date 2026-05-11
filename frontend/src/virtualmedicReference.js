@@ -1,9 +1,9 @@
 const doctorPortraitThemes = [
-  { background: 'linear-gradient(135deg, #52a8b3 0%, #2b6d86 100%)', accent: '#0e7490' },
-  { background: 'linear-gradient(135deg, #d6c0ae 0%, #b79274 100%)', accent: '#8b5e3c' },
-  { background: 'linear-gradient(135deg, #70c3d0 0%, #2079a0 100%)', accent: '#2563eb' },
-  { background: 'linear-gradient(135deg, #cad9ea 0%, #8db1d2 100%)', accent: '#1d4ed8' },
-  { background: 'linear-gradient(135deg, #b9d5cb 0%, #7cb09c 100%)', accent: '#0f766e' },
+  { background: '#eef2f7', accent: '#0e7490' },
+  { background: '#eef2f7', accent: '#8b5e3c' },
+  { background: '#eef2f7', accent: '#2563eb' },
+  { background: '#eef2f7', accent: '#1d4ed8' },
+  { background: '#eef2f7', accent: '#0f766e' },
 ]
 
 const experienceLabels = [
@@ -38,12 +38,24 @@ export function createSeedNumber(value) {
 export function getDoctorVisualProfile(doctor) {
   const seed = createSeedNumber(`${doctor?.id || ''}-${doctor?.username || ''}`)
   const theme = doctorPortraitThemes[seed % doctorPortraitThemes.length]
-  const rating = (4.6 + (seed % 5) * 0.1).toFixed(1)
   const price = 1800 + (seed % 8) * 250
   const experience = experienceLabels[seed % experienceLabels.length]
   const qualification = qualificationLabels[(seed + 2) % qualificationLabels.length]
   const eta = ['Сегодня', 'Завтра', 'Через 2 дня'][seed % 3]
   const reviewsCount = 12 + (seed % 37)
+  const fiveStarReviews = Math.min(
+    reviewsCount - 2,
+    Math.max(4, Math.round(reviewsCount * (0.68 + (seed % 4) * 0.03))),
+  )
+  const fourStarReviews = Math.min(
+    reviewsCount - fiveStarReviews,
+    Math.max(1, Math.round(reviewsCount * (0.22 - (seed % 3) * 0.02))),
+  )
+  const threeStarReviews = reviewsCount - fiveStarReviews - fourStarReviews
+  const rating = (
+    (fiveStarReviews * 5 + fourStarReviews * 4 + threeStarReviews * 3) /
+    reviewsCount
+  ).toFixed(1)
   const consultationsCount = 840 + (seed % 3600)
   const viewsCount = 4200 + (seed % 18000)
   const certificatesCount = 2 + (seed % 6)
@@ -57,6 +69,11 @@ export function getDoctorVisualProfile(doctor) {
     qualification,
     eta,
     reviewsCount,
+    reviewRatingCounts: {
+      5: fiveStarReviews,
+      4: fourStarReviews,
+      3: threeStarReviews,
+    },
     consultationsCount,
     viewsCount,
     certificatesCount,

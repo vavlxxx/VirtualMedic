@@ -4,8 +4,9 @@ import { useAuth } from './auth/AuthContext'
 import { resolveFormApiError, useSubmitLock } from './formSupport'
 import { AppLink } from './router'
 import { routes, withReturnTo } from './routes'
-import { buildQuestionHref, getInitials, trimMultilineText } from './publicPageUtils'
+import { buildQuestionHref, trimMultilineText } from './publicPageUtils'
 import { VirtualMedicPage } from './VirtualMedicLayout'
+import { ProfileImage } from './ProfileImage'
 import {
   formatRelativeQuestionTime,
   getQuestionCategory,
@@ -43,7 +44,7 @@ function PublicQuestionsFeedPage() {
   const runQuestionSubmit = useSubmitLock()
   const replySubmitLocksRef = useRef(new Set())
 
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery] = useState(() => new URLSearchParams(window.location.search).get('search') || '')
   const [selectedCategory, setSelectedCategory] = useState('Все направления')
   const [questions, setQuestions] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -192,14 +193,7 @@ function PublicQuestionsFeedPage() {
   }
 
   return (
-    <VirtualMedicPage
-      activeNav="questions"
-      actionLabel={auth.isAuthenticated ? 'Личный кабинет' : 'Войти'}
-      actionHref={auth.isAuthenticated ? routes.account : withReturnTo(routes.login, currentPageHref)}
-      searchPlaceholder="Поиск вопросов..."
-      searchValue={searchQuery}
-      onSearchChange={(event) => setSearchQuery(event.target.value)}
-    >
+    <VirtualMedicPage activeNav="questions">
       <section className="vm-page-section">
         <div className="vm-shell">
           <div className="vm-page-hero">
@@ -300,9 +294,15 @@ function PublicQuestionsFeedPage() {
                     <div className="vm-question-card__footer">
                       <div className="vm-inline-meta">
                         <div className="vm-avatar-stack" aria-hidden="true">
-                          {(question.comments.length ? question.comments : [question.author]).slice(0, 3).map((item) => (
-                            <span key={item.id || item.username}>{getInitials(item.author || item)}</span>
-                          ))}
+                          {(question.comments.length ? question.comments : [question.author]).slice(0, 3).map((item) => {
+                            const person = item.author || item
+
+                            return (
+                              <span key={item.id || person.username}>
+                                <ProfileImage alt="" src={person.avatar_url} />
+                              </span>
+                            )
+                          })}
                         </div>
                         <span className="vm-muted">
                           {hasAnswers ? 'Врачи консультируют' : 'Специалисты изучают вопрос'}

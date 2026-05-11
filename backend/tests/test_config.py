@@ -1,7 +1,7 @@
 import pytest
 from pydantic import SecretStr
 
-from src.config import AppSettings, CorsSettings, JwtSettings, Settings
+from src.config import AppSettings, CorsSettings, DbSettings, JwtSettings, Settings
 
 
 def make_prod_settings(**overrides) -> Settings:
@@ -11,6 +11,13 @@ def make_prod_settings(**overrides) -> Settings:
             docs_url=None,
             redoc_url=None,
             openapi_url=None,
+        ),
+        "db": DbSettings(
+            host="postgres",
+            port=5432,
+            user="postgres",
+            password=SecretStr("LocalTestDbPassword!123"),
+            name="virtualmedic",
         ),
         "auth": JwtSettings(
             secret_key=SecretStr("ProdSecret!1234567890"),
@@ -70,3 +77,20 @@ def test_prod_settings_accept_blank_or_null_docs_values_from_env_style_input() -
     assert settings.app.docs_url is None
     assert settings.app.redoc_url is None
     assert settings.app.openapi_url is None
+
+
+def test_db_settings_allow_separate_alembic_connection_target() -> None:
+    settings = DbSettings(
+        host="postgres",
+        port=5432,
+        user="postgres",
+        password=SecretStr("LocalTestDbPassword!123"),
+        name="virtualmedic",
+        alembic_host="localhost",
+        alembic_port=6432,
+    )
+
+    assert settings.async_url.host == "postgres"
+    assert settings.async_url.port == 5432
+    assert settings.alembic_async_url.host == "localhost"
+    assert settings.alembic_async_url.port == 6432

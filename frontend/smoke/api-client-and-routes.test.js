@@ -148,7 +148,7 @@ test('route helpers keep redirects inside the app and select correct dashboards'
   assert.equal(resolveSafeAppPath('/questions?tab=latest'), '/questions?tab=latest')
   assert.equal(resolveSafeAppPath('https://example.com'), routes.landing)
   assert.equal(resolveSafeAppPath('/api/v1/auth/me'), routes.landing)
-  assert.equal(withReturnTo(routes.login, '/account?tab=security'), '/login-desktop-ru?returnTo=%2Faccount%3Ftab%3Dsecurity')
+  assert.equal(withReturnTo(routes.login, '/account?tab=security'), '/login?returnTo=%2Faccount%3Ftab%3Dsecurity')
 })
 
 test('maintenance state uses dedicated endpoints', async () => {

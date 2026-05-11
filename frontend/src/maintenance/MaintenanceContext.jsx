@@ -25,7 +25,7 @@ function formatUpdatedAt(value) {
 }
 
 function isLoginRoute(pathname) {
-  return [routes.login, routes.loginAlias].includes(pathname)
+  return [routes.login, routes.loginLegacy].includes(pathname)
 }
 
 function MaintenanceScreen({ updatedAt }) {
@@ -49,21 +49,6 @@ function MaintenanceScreen({ updatedAt }) {
           <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-slate-600 sm:text-lg">
             Платформа находится в режиме технических работ.
           </p>
-
-          <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <AppLink
-              className="rounded-2xl bg-primary px-6 py-3 text-sm font-bold text-white shadow-lg shadow-primary/20 transition-all hover:bg-[#142e70]"
-              href={routes.login}
-            >
-              Вход для администратора
-            </AppLink>
-            <AppLink
-              className="rounded-2xl border border-slate-200 px-6 py-3 text-sm font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50"
-              href={routes.landing}
-            >
-              Обновить страницу
-            </AppLink>
-          </div>
 
           {updatedAt ? (
             <p className="mt-8 text-sm text-slate-400">

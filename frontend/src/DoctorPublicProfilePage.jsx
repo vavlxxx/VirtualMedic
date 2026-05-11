@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ApiError, apiClient } from './api/client'
 import { AppLink, useRouter } from './router'
-import { routes, withReturnTo } from './routes'
-import { formatDateTime, getDisplayName, getInitials, parsePositiveInteger } from './publicPageUtils'
+import { routes } from './routes'
+import { formatDateTime, getDisplayName, parsePositiveInteger } from './publicPageUtils'
 import { VirtualMedicPage } from './VirtualMedicLayout'
 import { getDoctorVisualProfile } from './virtualmedicReference'
+import { ProfileImage } from './ProfileImage'
 
 const profileTabs = [
   { key: 'about', label: 'О враче' },
@@ -15,16 +16,31 @@ const profileTabs = [
 
 const numberFormatter = new Intl.NumberFormat('ru-RU')
 
+function StarRating({ rating, small = false }) {
+  const roundedRating = Math.round(Number(rating) || 0)
+
+  return (
+    <span className={`vm-star-rating ${small ? 'vm-star-rating--small' : ''}`} aria-label={`Rating ${rating} of 5`}>
+      {Array.from({ length: 5 }).map((_, index) => (
+        <span className={`material-symbols-outlined ${index < roundedRating ? 'is-filled' : ''}`} key={index}>
+          star
+        </span>
+      ))}
+      <strong>{rating}</strong>
+    </span>
+  )
+}
+
 function DoctorPublicProfilePage() {
   const { location } = useRouter()
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search])
   const doctorId = parsePositiveInteger(searchParams.get('doctor_id'))
-  const currentPageHref = `${location.pathname}${location.search}${location.hash || ''}`
 
   const [doctor, setDoctor] = useState(null)
   const [isLoading, setIsLoading] = useState(Boolean(doctorId))
   const [errorMessage, setErrorMessage] = useState('')
-  const [activeTab, setActiveTab] = useState(profileTabs[0].key)
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || profileTabs[0].key)
+  const [showAllReviews, setShowAllReviews] = useState(false)
 
   useEffect(() => {
     let isCancelled = false
@@ -66,18 +82,42 @@ function DoctorPublicProfilePage() {
 
   const visualProfile = doctor ? getDoctorVisualProfile(doctor) : null
   const mainSpecialization = doctor?.specializations[0]?.name || 'Врач'
-  const reviewCards = doctor
+  const baseReviewCards = doctor
     ? [
         {
           author: 'Елена М.',
+          rating: 5,
           text: `Очень внимательный врач. ${getDisplayName(doctor)} подробно объяснил рекомендации и дальнейшие шаги.`,
         },
         {
           author: 'Игорь П.',
+          rating: 5,
           text: 'Консультация прошла структурированно, получил понятный план обследования и лечения.',
+        },
+        {
+          author: 'Марина С.',
+          rating: 4,
+          text: 'Получила понятные рекомендации и список обследований, которые нужно подготовить перед очным приемом.',
+        },
+        {
+          author: 'Алексей Р.',
+          rating: 5,
+          text: 'Врач внимательно разобрал симптомы, объяснил возможные причины и помог выбрать дальнейшую тактику.',
         },
       ]
     : []
+  const reviewCards =
+    doctor && visualProfile
+      ? Array.from({ length: visualProfile.reviewsCount }, (_, index) => {
+          const review = baseReviewCards[index % baseReviewCards.length]
+
+          return {
+            ...review,
+            author: index < baseReviewCards.length ? review.author : `${review.author} ${index + 1}`,
+          }
+        })
+      : []
+  const visibleReviewCards = showAllReviews ? reviewCards : reviewCards.slice(0, 4)
   const tabBadges = visualProfile
     ? {
         reviews: visualProfile.reviewsCount,
@@ -96,11 +136,13 @@ function DoctorPublicProfilePage() {
         <section className="vm-profile-tab-panel">
           <div className="vm-question-card__row">
             <h2>Отзывы пациентов</h2>
-            <span className="vm-link">{numberFormatter.format(visualProfile.reviewsCount)} отзывов</span>
+            <button className="vm-link vm-link-button" type="button" onClick={() => setShowAllReviews(true)}>
+              {numberFormatter.format(visualProfile.reviewsCount)} {'\u043e\u0442\u0437\u044b\u0432\u043e\u0432'}
+            </button>
           </div>
 
           <div className="vm-review-grid">
-            {reviewCards.map((review) => (
+            {visibleReviewCards.map((review) => (
               <article className="vm-card vm-review-card" key={review.author}>
                 <div className="vm-inline-meta">
                   <div className="vm-doctor-portrait vm-review-card__avatar">
@@ -110,6 +152,7 @@ function DoctorPublicProfilePage() {
                     <strong>{review.author}</strong>
                     <div className="vm-muted">{formatDateTime(new Date().toISOString())}</div>
                   </div>
+                  <StarRating rating={review.rating} small />
                 </div>
                 <p>{review.text}</p>
               </article>
@@ -195,11 +238,7 @@ function DoctorPublicProfilePage() {
   }
 
   return (
-    <VirtualMedicPage
-      activeNav="doctors"
-      actionLabel="Личный кабинет"
-      actionHref={withReturnTo(routes.login, currentPageHref)}
-    >
+    <VirtualMedicPage activeNav="doctors">
       <section className="vm-page-section">
         <div className="vm-shell">
           <div className="vm-breadcrumbs">
@@ -221,7 +260,7 @@ function DoctorPublicProfilePage() {
           {isLoading ? (
             <section className="vm-card vm-empty-state">
               <h2>Загружаем профиль врача</h2>
-              <p>Получаем публичные данные врача по `doctor_id`.</p>
+              <p>Подготавливаем карточку специалиста.</p>
             </section>
           ) : null}
 
@@ -236,125 +275,80 @@ function DoctorPublicProfilePage() {
           ) : null}
 
           {doctor && visualProfile ? (
-            <div className="vm-profile-layout">
-              <aside className="vm-profile-sidebar">
-                <article className="vm-card vm-profile-identity-card">
-                  <div
-                    className="vm-doctor-portrait vm-profile-identity-card__portrait"
-                    style={{ background: visualProfile.theme.background }}
-                    aria-hidden="true"
-                  >
-                    {getInitials(doctor)}
+            <div className="vm-profile-modern">
+              <section className="vm-card vm-modern-profile-hero">
+                <div className="vm-modern-profile-photo">
+                  <ProfileImage alt={getDisplayName(doctor)} src={doctor.avatar_url} />
+                </div>
+
+                <div className="vm-modern-profile-main">
+                  <div className="vm-inline-meta">
+                    <span className="vm-verified-strip">
+                      <span className="material-symbols-outlined">verified</span>
+                      Проверенный врач
+                    </span>
+                    <span className={doctor.is_online ? 'vm-online-chip' : 'vm-online-chip is-muted'}>
+                      <span className="vm-online-dot" aria-hidden="true" />
+                      {doctor.is_online ? 'Онлайн' : `Был(a): ${visualProfile.eta}`}
+                    </span>
                   </div>
-
-                  <div className={doctor.is_online ? 'vm-profile-presence is-online' : 'vm-profile-presence'}>
-                    <span className="vm-online-dot" aria-hidden="true" />
-                    {doctor.is_online ? 'Сейчас на сайте' : `Заходил(a): ${visualProfile.eta}`}
-                  </div>
-
-                  <div className="vm-profile-rating-row" aria-label={`Рейтинг ${visualProfile.rating}`}>
-                    {Array.from({ length: 5 }).map((_, index) => (
-                      <span className="material-symbols-outlined" key={index}>star</span>
-                    ))}
-                  </div>
-
-                  <AppLink className="vm-button" href={withReturnTo(routes.login, currentPageHref)}>
-                    Консультация {visualProfile.price.toLocaleString('ru-RU')} ₽
-                  </AppLink>
-                  <AppLink className="vm-button vm-button--success" href={routes.questions}>
-                    Благодарность врачу
-                  </AppLink>
-                </article>
-              </aside>
-
-              <div className="vm-grid">
-                <article className="vm-card vm-profile-summary-card">
-                  <div className="vm-profile-summary-card__header">
+                  <h1 className="vm-profile-hero__title">{getDisplayName(doctor)}</h1>
+                  <p className="vm-muted">
+                    {doctor.specializations.map((item) => item.name).join(', ') || 'Врач'} · {visualProfile.qualification}
+                  </p>
+                  <dl className="vm-profile-facts-list">
                     <div>
-                      <div className="vm-inline-meta">
-                        <span className="vm-verified-strip">
-                          <span className="material-symbols-outlined">verified</span>
-                          Проверенный эксперт
-                        </span>
-                        {doctor.is_online ? (
-                          <span className="vm-online-chip">
-                            <span className="vm-online-dot" aria-hidden="true" />
-                            Онлайн
-                          </span>
-                        ) : null}
-                      </div>
-                      <h1 className="vm-profile-hero__title">{getDisplayName(doctor)}</h1>
-                      <p className="vm-muted">{doctor.specializations.map((item) => item.name).join(', ') || 'Врач'}</p>
-                    </div>
-                  </div>
-
-                  <dl className="vm-profile-info-list">
-                    <div>
-                      <dt>Место работы</dt>
-                      <dd>Онлайн-клиника VirtualMedic</dd>
+                      <dt>{'\u0421\u0442\u0430\u0436'}</dt>
+                      <dd>{parsePositiveInteger(visualProfile.experience.match(/\d+/)?.[0]) || 0} {'\u043b\u0435\u0442'}</dd>
                     </div>
                     <div>
-                      <dt>Должность</dt>
-                      <dd>{mainSpecialization}</dd>
+                      <dt>{'\u0420\u0435\u0439\u0442\u0438\u043d\u0433'}</dt>
+                      <dd><StarRating rating={visualProfile.rating} /></dd>
                     </div>
                     <div>
-                      <dt>Общий стаж</dt>
-                      <dd>{visualProfile.experience.replace('Стаж: ', '')}</dd>
-                    </div>
-                    <div>
-                      <dt>Специализация</dt>
-                      <dd>{doctor.specializations.map((item) => item.name).join(', ') || 'Не указана'}</dd>
-                    </div>
-                    <div>
-                      <dt>Научная степень</dt>
-                      <dd>{visualProfile.qualification}</dd>
-                    </div>
-                    <div>
-                      <dt>Образование</dt>
-                      <dd>Медицинский университет, лечебный факультет, врач</dd>
+                      <dt>{'\u041e\u0442\u0437\u044b\u0432\u044b'}</dt>
+                      <dd>{numberFormatter.format(visualProfile.reviewsCount)}</dd>
                     </div>
                   </dl>
-                </article>
+                </div>
 
-                <section className="vm-card vm-profile-stats-card">
+                <aside className="vm-modern-booking-card">
                   <div>
-                    <strong>{numberFormatter.format(visualProfile.reviewsCount)}</strong>
-                    <span>Отзывов</span>
+                    <span className="vm-overline">Стоимость консультации</span>
+                    <strong>{visualProfile.price.toLocaleString('ru-RU')} ₽</strong>
                   </div>
-                  <div>
-                    <strong>{numberFormatter.format(visualProfile.viewsCount)}</strong>
-                    <span>Просмотров</span>
+                  <div className="vm-booking-note">
+                    <span className="material-symbols-outlined">bolt</span>
+                    Ближайший слот: {visualProfile.eta}, 14:30
                   </div>
-                  <div>
-                    <strong>{numberFormatter.format(visualProfile.consultationsCount)}</strong>
-                    <span>Консультаций</span>
-                  </div>
-                  <div>
-                    <strong>{visualProfile.responseTimeHours} часа</strong>
-                    <span>Время отклика</span>
-                  </div>
-                </section>
+                  <button className="vm-button" type="button" onClick={() => setActiveTab('consultations')}>
+                    Записаться
+                  </button>
+                  <button className="vm-button vm-button--dark" type="button" onClick={() => setActiveTab('reviews')}>
+                    Смотреть отзывы
+                  </button>
+                </aside>
+              </section>
 
-                <article className="vm-card vm-detail-card">
-                  <div className="vm-tabbar" role="tablist" aria-label="Разделы профиля врача">
-                    {profileTabs.map((item) => (
-                      <button
-                        className={activeTab === item.key ? 'is-active' : ''}
-                        type="button"
-                        role="tab"
-                        aria-selected={activeTab === item.key}
-                        key={item.key}
-                        onClick={() => setActiveTab(item.key)}
-                      >
-                        <span>{item.label}</span>
-                        {tabBadges[item.key] ? <strong>{numberFormatter.format(tabBadges[item.key])}</strong> : null}
-                      </button>
-                    ))}
-                  </div>
+              <article className="vm-card vm-detail-card vm-modern-detail-card">
+                <div className="vm-tabbar" role="tablist" aria-label="Разделы профиля врача">
+                  {profileTabs.map((item) => (
+                    <button
+                      className={activeTab === item.key ? 'is-active' : ''}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeTab === item.key}
+                      key={item.key}
+                      onClick={() => setActiveTab(item.key)}
+                    >
+                      <span>{item.label}</span>
+                      {tabBadges[item.key] ? <strong>{numberFormatter.format(tabBadges[item.key])}</strong> : null}
+                    </button>
+                  ))}
+                </div>
 
-                  {renderTabContent()}
-                </article>
-              </div>
+                {renderTabContent()}
+              </article>
             </div>
           ) : null}
         </div>

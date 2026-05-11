@@ -95,6 +95,15 @@ async def update_my_profile(payload: ProfileUpdateRequest, db: DBDep, current_us
     return await AuthService(db).update_my_profile(payload=payload, current_user=current_user)
 
 
+@router.post("/me/avatar", response_model=UserProfileDTO)
+async def upload_my_avatar(
+    db: DBDep,
+    current_user: CurrentUserDep,
+    avatar: UploadFile = File(...),
+) -> UserProfileDTO:
+    return await AuthService(db).upload_my_avatar(current_user=current_user, avatar=avatar)
+
+
 @router.post("/change-password", response_model=MessageResponseDTO)
 async def change_password(
     payload: PasswordChangeRequest, db: DBDep, current_user: CurrentUserDep

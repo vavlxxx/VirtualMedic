@@ -34,7 +34,7 @@ const routeMap = {
     access: 'protected',
     roles: ['admin', 'superuser'],
   },
-  [routes.adminAlias]: {
+  [routes.adminLegacy]: {
     redirectTo: routes.admin,
     preserveSearch: true,
     access: 'protected',
@@ -44,7 +44,7 @@ const routeMap = {
     component: DoctorDirectoryWithFiltersPage,
     access: 'public',
   },
-  [routes.doctorsAlias]: {
+  [routes.doctorsLegacy]: {
     redirectTo: routes.doctors,
     preserveSearch: true,
     access: 'public',
@@ -53,11 +53,16 @@ const routeMap = {
     component: DoctorPublicProfilePage,
     access: 'public',
   },
+  [routes.doctorProfileLegacy]: {
+    redirectTo: routes.doctorProfile,
+    preserveSearch: true,
+    access: 'public',
+  },
   [routes.questions]: {
     component: PublicQuestionsFeedPage,
     access: 'public',
   },
-  [routes.questionsAlias]: {
+  [routes.questionsLegacy]: {
     redirectTo: routes.questions,
     preserveSearch: true,
     access: 'public',
@@ -66,19 +71,19 @@ const routeMap = {
     component: QuestionPublicDetailPage,
     access: 'public',
   },
-  [routes.questionDetailAlias]: {
+  [routes.questionDetailLegacy]: {
     redirectTo: routes.questionDetail,
     preserveSearch: true,
     access: 'public',
   },
   [routes.login]: { component: LoginDesktopPage, access: 'guest' },
-  [routes.loginAlias]: {
+  [routes.loginLegacy]: {
     redirectTo: routes.login,
     preserveSearch: true,
     access: 'guest',
   },
   [routes.register]: { component: RegistrationDesktopPage, access: 'guest' },
-  [routes.registerAlias]: {
+  [routes.registerLegacy]: {
     redirectTo: routes.register,
     preserveSearch: true,
     access: 'guest',
