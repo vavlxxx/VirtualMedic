@@ -54,6 +54,9 @@ jobs:
       - name: Prepare backend environment
         run: cp .env.template .env
 
+      - name: Run backend app
+        run : poetry run python -m src.gunicorn.run
+
       - name: Pytest
         run: poetry run python -m pytest -v
 

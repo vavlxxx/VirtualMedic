@@ -119,7 +119,7 @@ function QuestionPublicDetailPage() {
                   <span>{category}</span>
                 </div>
 
-                
+
 
                 <div className="vm-card vm-detail-card">
                   {/* <h2>Контекст обращения</h2>
