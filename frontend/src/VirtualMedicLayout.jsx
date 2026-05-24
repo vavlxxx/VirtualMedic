@@ -133,9 +133,9 @@ export function VirtualMedicPage({
   )
 }
 
-export function VirtualMedicAuthFrame({ children, subtitle, title }) {
+export function VirtualMedicAuthFrame({ children, subtitle, title, showCardBrand = true, cardScrollable = false }) {
   return (
-    <main className="vm-auth">
+    <main className={`vm-auth ${cardScrollable ? 'vm-auth--modal' : ''}`}>
       <div className="vm-auth__topbar">
         <div className="vm-auth__topbar-inner">
           <AppLink href={routes.landing} className="vm-auth__brand">
@@ -147,9 +147,11 @@ export function VirtualMedicAuthFrame({ children, subtitle, title }) {
 
       <div className="vm-auth__body">
         <section className="vm-auth__card">
-          <div className="vm-auth__card-brand">
-            <VirtualMedicLogo />
-          </div>
+          {showCardBrand ? (
+            <div className="vm-auth__card-brand">
+              <VirtualMedicLogo />
+            </div>
+          ) : null}
           <header className="vm-auth__header">
             <h1>{title}</h1>
             <p>{subtitle}</p>

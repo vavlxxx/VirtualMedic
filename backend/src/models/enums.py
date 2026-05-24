@@ -11,3 +11,8 @@ class UserRole(str, Enum):
 class JwtTokenType(str, Enum):
     ACCESS = "access"
     REFRESH = "refresh"
+
+
+class QuestionFormat(str, Enum):
+    PAID = "paid"
+    FREE = "free"

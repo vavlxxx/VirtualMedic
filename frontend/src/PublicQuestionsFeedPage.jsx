@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError, apiClient } from './api/client'
 import { useAuth } from './auth/AuthContext'
-import { resolveFormApiError, useSubmitLock } from './formSupport'
 import { AppLink } from './router'
 import { routes, withReturnTo } from './routes'
 import { buildQuestionHref, trimMultilineText } from './publicPageUtils'
+import { AskDoctorWizardModal } from './AskDoctorWizardModal'
 import { VirtualMedicPage } from './VirtualMedicLayout'
-import { ProfileImage } from './ProfileImage'
 import {
   formatRelativeQuestionTime,
   getQuestionCategory,
@@ -25,35 +24,17 @@ const categoryOrder = [
   'Кардиология',
 ]
 
-function validateQuestionText(value) {
-  const normalizedValue = trimMultilineText(value)
-
-  if (!normalizedValue) {
-    return 'Введите текст вопроса'
-  }
-  if (normalizedValue.length < 10) {
-    return 'Вопрос должен содержать минимум 10 символов'
-  }
-
-  return ''
-}
-
 function PublicQuestionsFeedPage() {
   const auth = useAuth()
   const currentPageHref = routes.questions
-  const runQuestionSubmit = useSubmitLock()
   const replySubmitLocksRef = useRef(new Set())
 
-  const [searchQuery] = useState(() => new URLSearchParams(window.location.search).get('search') || '')
+  const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('Все направления')
   const [questions, setQuestions] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
-
-  const [questionDraft, setQuestionDraft] = useState('')
-  const [questionDraftError, setQuestionDraftError] = useState('')
-  const [questionDraftMessage, setQuestionDraftMessage] = useState('')
-  const [isQuestionSubmitting, setIsQuestionSubmitting] = useState(false)
+  const [isWizardOpen, setIsWizardOpen] = useState(false)
 
   const [replyDrafts, setReplyDrafts] = useState({})
   const [replyErrors, setReplyErrors] = useState({})
@@ -107,46 +88,6 @@ function PublicQuestionsFeedPage() {
     })
   }, [questions, searchQuery, selectedCategory])
 
-  const handleQuestionSubmit = async (event) => {
-    event.preventDefault()
-
-    if (!auth.isReady) {
-      setQuestionDraftError('Сначала дождитесь восстановления сессии.')
-      return
-    }
-    if (!auth.isAuthenticated || !auth.hasRole('patient')) {
-      setQuestionDraftError('Создание вопроса доступно только авторизованному пациенту.')
-      return
-    }
-
-    const validationError = validateQuestionText(questionDraft)
-    if (validationError) {
-      setQuestionDraftError(validationError)
-      return
-    }
-
-    await runQuestionSubmit(async () => {
-      setIsQuestionSubmitting(true)
-      setQuestionDraftError('')
-      setQuestionDraftMessage('')
-
-      try {
-        const response = await apiClient.createQuestion({ text: trimMultilineText(questionDraft) })
-        setQuestions((current) => [response, ...current])
-        setQuestionDraft('')
-        setQuestionDraftMessage('Вопрос опубликован и появился в общей ленте.')
-      } catch (error) {
-        const resolvedError = resolveFormApiError(error, {
-          defaultMessage: 'Не удалось отправить вопрос.',
-        })
-
-        setQuestionDraftError(resolvedError.formError)
-      } finally {
-        setIsQuestionSubmitting(false)
-      }
-    })
-  }
-
   const handleReplySubmit = (questionId) => async (event) => {
     event.preventDefault()
 
@@ -192,8 +133,26 @@ function PublicQuestionsFeedPage() {
     }
   }
 
+  const categoryToSpecializationLabel = {
+    Терапия: 'Терапия',
+    Педиатрия: 'Педиатрия',
+    Дерматология: 'Дерматология',
+    Неврология: 'Неврология',
+    Гастроэнтерология: 'Гастроэнтерология',
+    Кардиология: 'Кардиология',
+  }
+
+  const preferredSpecializationLabel = categoryToSpecializationLabel[selectedCategory] || ''
+
   return (
-    <VirtualMedicPage activeNav="questions">
+    <VirtualMedicPage
+      activeNav="questions"
+      actionLabel={auth.isAuthenticated ? 'Личный кабинет' : 'Войти'}
+      actionHref={auth.isAuthenticated ? routes.account : withReturnTo(routes.login, currentPageHref)}
+      searchPlaceholder="Поиск вопросов..."
+      searchValue={searchQuery}
+      onSearchChange={(event) => setSearchQuery(event.target.value)}
+    >
       <section className="vm-page-section">
         <div className="vm-shell">
           <div className="vm-page-hero">
@@ -216,41 +175,17 @@ function PublicQuestionsFeedPage() {
             ))}
           </div>
 
-          <section className="vm-card vm-compose-card vm-question-card">
-            <div className="vm-question-card__row">
+          <section className="vm-card vm-question-launch-card">
+            <div className="vm-question-launch-card__content">
               <div>
                 <div className="vm-overline">Новый вопрос</div>
                 <h2>Спросить врача</h2>
+                <p className="vm-muted">Откроется пошаговая форма с выбором специализации и дальнейшими шагами.</p>
               </div>
-
-              {!auth.isAuthenticated ? (
-                <AppLink className="vm-button vm-button--soft" href={withReturnTo(routes.login, currentPageHref)}>
-                  Войти для публикации
-                </AppLink>
-              ) : null}
+              <button className="vm-button" type="button" onClick={() => setIsWizardOpen(true)}>
+                Задать вопрос
+              </button>
             </div>
-
-            {questionDraftMessage ? <div className="vm-auth-message is-success">{questionDraftMessage}</div> : null}
-            {questionDraftError ? <div className="vm-auth-message is-error">{questionDraftError}</div> : null}
-
-            <form onSubmit={handleQuestionSubmit} className="vm-grid">
-              <textarea
-                className="vm-textarea"
-                placeholder="Опишите симптомы, сроки и что уже предпринимали"
-                value={questionDraft}
-                onChange={(event) => {
-                  setQuestionDraft(event.target.value)
-                  setQuestionDraftError('')
-                }}
-                disabled={isQuestionSubmitting}
-              />
-              <div className="vm-question-card__footer">
-                <span className="vm-helper">Вопрос станет виден в публичной ленте сразу после отправки.</span>
-                <button className="vm-button" type="submit" disabled={isQuestionSubmitting}>
-                  {isQuestionSubmitting ? 'Публикуем...' : 'Задать вопрос'}
-                </button>
-              </div>
-            </form>
           </section>
 
           {isLoading ? (
@@ -350,6 +285,22 @@ function PublicQuestionsFeedPage() {
             </div>
           ) : null}
         </div>
+
+        <button
+          className="vm-floating-ask-button"
+          onClick={() => setIsWizardOpen(true)}
+          type="button"
+        >
+          <span className="material-symbols-outlined">chat</span>
+          Спросить врача
+        </button>
+
+        <AskDoctorWizardModal
+          isOpen={isWizardOpen}
+          onClose={() => setIsWizardOpen(false)}
+          preferredSpecializationLabel={preferredSpecializationLabel}
+          onQuestionCreated={() => setIsWizardOpen(false)}
+        />
       </section>
     </VirtualMedicPage>
   )

@@ -63,6 +63,13 @@ class QuestionRepo(BaseRepo):
     async def count_all(self) -> int:
         return int(await self.session.scalar(select(func.count(Question.id))) or 0)
 
+    async def count_unanswered_free_questions(self) -> int:
+        statement = select(func.count(Question.id)).where(
+            Question.question_format == "free",
+            ~Question.comments.any(),
+        )
+        return int(await self.session.scalar(statement) or 0)
+
 
 class QuestionCommentRepo(BaseRepo):
     def add(self, comment: QuestionComment) -> None:

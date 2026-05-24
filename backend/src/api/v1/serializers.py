@@ -7,7 +7,7 @@ from src.models.qa import Question, QuestionComment
 from src.schemas.admin import AdminAnswerListItemDTO, AdminQuestionListItemDTO, AdminUserListItemDTO
 from src.schemas.auth import SpecializationInlineDTO, UserProfileDTO
 from src.schemas.doctor import DoctorDetailDTO, DoctorListItemDTO, DoctorQualificationDocumentDTO, SpecializationDTO
-from src.schemas.qa import QuestionCommentDTO, QuestionDTO, UserShortDTO
+from src.schemas.qa import QuestionCommentDTO, QuestionDTO, QuestionFormatDTO, UserShortDTO
 
 
 def to_specialization_dto(item: Specialization) -> SpecializationDTO:
@@ -104,11 +104,28 @@ def to_question_comment(comment: QuestionComment) -> QuestionCommentDTO:
 
 def to_question(question: Question) -> QuestionDTO:
     comments = sorted(question.comments, key=lambda item: item.created_at)
+    question_format = QuestionFormatDTO(question.question_format) if question.question_format else None
+
     return QuestionDTO(
         id=question.id,
         text=question.text,
         created_at=question.created_at,
         author=to_user_short(question.author),
+        specialization_id=question.specialization_id,
+        short_problem=question.short_problem,
+        details=question.details,
+        question_format=question_format,
+        price_rub=question.price_rub,
+        is_paid_mock=question.is_paid_mock,
+        queue_position_at_submit=question.queue_position_at_submit,
+        promo_code=question.promo_code,
+        patient_name=question.patient_name,
+        patient_age=question.patient_age,
+        chronic_conditions=question.chronic_conditions,
+        contact_email=question.contact_email,
+        consent_terms=question.consent_terms,
+        consent_marketing=question.consent_marketing,
+        source=question.source,
         comments=[to_question_comment(item) for item in comments],
     )
 

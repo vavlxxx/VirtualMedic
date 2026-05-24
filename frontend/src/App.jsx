@@ -9,8 +9,9 @@ import {
   buildQuestionHref,
   getDisplayName,
 } from './publicPageUtils'
-import { AppLink, useRouter } from './router'
+import { AppLink } from './router'
 import { getDefaultAuthenticatedPath, routes } from './routes'
+import { AskDoctorWizardModal } from './AskDoctorWizardModal'
 import {
   formatRelativeQuestionTime,
   getDoctorVisualProfile,
@@ -69,12 +70,11 @@ function getAnswersLabel(commentsCount) {
 
 function App() {
   const auth = useAuth()
-  const { navigate } = useRouter()
   const rootRef = useRef(null)
   const heroVisualRef = useRef(null)
   const mobileTestimonialsTrackRef = useRef(null)
   const [typedSymptom, setTypedSymptom] = useState('')
-  const [heroSearchQuery, setHeroSearchQuery] = useState('')
+  const [heroQuestion, setHeroQuestion] = useState('')
   const [showTypeCursor, setShowTypeCursor] = useState(true)
   const [testimonials, setTestimonials] = useState([])
   const [isTestimonialsLoading, setIsTestimonialsLoading] = useState(true)
@@ -84,6 +84,7 @@ function App() {
   const [isLiveFeedLoading, setIsLiveFeedLoading] = useState(true)
   const [liveFeedError, setLiveFeedError] = useState('')
   const [liveFeedUpdatedAt, setLiveFeedUpdatedAt] = useState(null)
+  const [isAskDoctorModalOpen, setIsAskDoctorModalOpen] = useState(false)
 
   const animatedPlaceholder = `Например: ${typedSymptom}${showTypeCursor ? '|' : ' '}`
   const mobileTestimonialsCount = isTestimonialsLoading ? 3 : testimonials.length
@@ -98,11 +99,12 @@ function App() {
     { value: specialties.length, label: 'направлений' },
   ]
 
-  const handleHeroSearchSubmit = (event) => {
-    event.preventDefault()
+  const openAskDoctorModal = () => {
+    setIsAskDoctorModalOpen(true)
+  }
 
-    const query = heroSearchQuery.trim()
-    navigate(query ? `${routes.questions}?search=${encodeURIComponent(query)}` : routes.questions)
+  const closeAskDoctorModal = () => {
+    setIsAskDoctorModalOpen(false)
   }
 
   const goToMobileTestimonial = (index) => {
@@ -424,7 +426,7 @@ function App() {
                 клиник. Быстро, анонимно и официально.
               </p>
 
-              <form className="js-hero-reveal flex max-w-xl flex-col gap-3 sm:gap-4" onSubmit={handleHeroSearchSubmit}>
+              <div className="js-hero-reveal flex max-w-xl flex-col gap-3 sm:gap-4">
                 <div className="group relative">
                   <span className="material-symbols-outlined absolute top-1/2 left-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-primary">
                     search
@@ -433,21 +435,22 @@ function App() {
                     className="w-full rounded-xl border border-slate-200 bg-white py-3.5 pr-4 pl-11 text-sm shadow-sm outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20 sm:rounded-2xl sm:py-4 sm:pl-12 sm:text-base"
                     placeholder={animatedPlaceholder}
                     type="text"
-                    value={heroSearchQuery}
-                    onChange={(event) => setHeroSearchQuery(event.target.value)}
+                    value={heroQuestion}
+                    onChange={(event) => setHeroQuestion(event.target.value)}
                   />
                 </div>
 
                 <button
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3.5 text-base font-bold text-white shadow-lg shadow-primary/20 transition-all hover:bg-[#142e70] sm:rounded-2xl sm:px-8 sm:py-4 sm:text-lg sm:shadow-xl sm:shadow-primary/30 sm:hover:scale-[1.02]"
-                  type="submit"
+                  type="button"
+                  onClick={openAskDoctorModal}
                 >
-                  <span>{heroSearchQuery.trim() ? 'Найти похожие вопросы' : 'Задать вопрос'}</span>
+                  <span>Задать вопрос</span>
                   <span className="material-symbols-outlined text-lg sm:text-xl">
                     chat_bubble
                   </span>
                 </button>
-              </form>
+              </div>
 
               <div className="js-hero-reveal mt-1 hidden items-center gap-4 md:flex">
                 <div className="flex -space-x-3">
@@ -941,6 +944,12 @@ function App() {
       </main>
 
       <VirtualMedicFooter />
+      <AskDoctorWizardModal
+        isOpen={isAskDoctorModalOpen}
+        initialQuestion={heroQuestion}
+        onClose={closeAskDoctorModal}
+        onQuestionCreated={() => setHeroQuestion('')}
+      />
 
     </div>
   )

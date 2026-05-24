@@ -12,6 +12,7 @@ html {
 
 .js-hero-parallax-card {
   transform-origin: center;
+  transform-style: preserve-3d;
 }
 
 .js-reveal-section,
@@ -167,17 +168,10 @@ html {
   place-items: center;
   width: 2.5rem;
   height: 2.5rem;
-  overflow: hidden;
   border-radius: 0.75rem;
   color: rgba(255, 255, 255, 0.95);
   font-size: 0.78rem;
   font-weight: 800;
-}
-
-.vm-live-doctor-item__avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 .vm-live-doctor-item__body {
@@ -255,6 +249,334 @@ html {
     transition: none !important;
     animation: none !important;
     transform: none !important;
+  }
+}
+
+.ask-wizard-overlay,
+.ask-auth-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(6px);
+}
+
+.ask-auth-overlay {
+  z-index: 90;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.ask-wizard-card,
+.ask-auth-card {
+  width: min(840px, 100%);
+  max-height: min(92vh, 980px);
+  overflow-y: auto;
+  border-radius: 1.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.22);
+  padding: 1.25rem;
+}
+
+.ask-auth-card {
+  width: min(480px, 100%);
+}
+
+.ask-wizard-header,
+.ask-auth-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.ask-wizard-header h2,
+.ask-auth-head h3,
+.ask-wizard-step-title {
+  margin: 0;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #334155;
+}
+
+.ask-wizard-header h2 {
+  font-size: clamp(1.85rem, 3vw, 2.45rem);
+}
+
+.ask-auth-head h3,
+.ask-wizard-step-title {
+  font-size: clamp(1.45rem, 2.3vw, 1.9rem);
+}
+
+.ask-wizard-header p {
+  margin: 0.35rem 0 0;
+  color: #64748b;
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.ask-wizard-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.65rem;
+  height: 2.65rem;
+  border-radius: 999px;
+  border: none;
+  background: #eef2f7;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.ask-wizard-grid {
+  display: grid;
+  gap: 0.88rem;
+}
+
+.ask-wizard-field {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.ask-wizard-field > span,
+.ask-wizard-field__row {
+  color: #64748b;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.ask-wizard-field__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.ask-wizard-input,
+.ask-wizard-textarea {
+  width: 100%;
+  border: 1px solid #dbe2ec;
+  border-radius: 1rem;
+  background: #ffffff;
+  color: #334155;
+  font: inherit;
+  outline: none;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.ask-wizard-input {
+  min-height: 3rem;
+  padding: 0 0.95rem;
+}
+
+.ask-wizard-textarea {
+  min-height: 9.4rem;
+  resize: vertical;
+  padding: 0.78rem 0.95rem;
+}
+
+.ask-wizard-input:focus,
+.ask-wizard-textarea:focus {
+  border-color: #7cb8ef;
+  box-shadow: 0 0 0 3px rgba(96, 164, 229, 0.22);
+}
+
+.ask-wizard-note {
+  margin: 0;
+  color: #5f6f83;
+  line-height: 1.48;
+}
+
+.ask-wizard-note strong {
+  color: #5fa4e5;
+}
+
+.ask-wizard-note--error,
+.ask-wizard-error {
+  color: #b42318;
+}
+
+.ask-wizard-error,
+.ask-wizard-success {
+  margin-bottom: 0.88rem;
+  border-radius: 0.9rem;
+  border: 1px solid #f3d4d1;
+  background: #fff7f7;
+  padding: 0.65rem 0.8rem;
+  font-size: 0.92rem;
+}
+
+.ask-wizard-success {
+  border-color: #d6f0e2;
+  background: #f3fff9;
+  color: #0f8f64;
+}
+
+.ask-wizard-link {
+  border: none;
+  padding: 0;
+  background: none;
+  color: #5fa4e5;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ask-format-card {
+  border: 1px solid #d8e6f8;
+  border-radius: 1.2rem;
+  background: linear-gradient(180deg, #6ab4f2 0%, #3f95e7 100%);
+  color: #ffffff;
+  text-align: left;
+  padding: 0.95rem;
+  cursor: pointer;
+}
+
+.ask-format-card--free {
+  background: #ffffff;
+  color: #64748b;
+  border-color: #dbe2ec;
+}
+
+.ask-format-card.is-active {
+  box-shadow: 0 0 0 3px rgba(96, 164, 229, 0.28);
+}
+
+.ask-format-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.62rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.48rem;
+}
+
+.ask-format-card__head strong {
+  font-size: 1.1rem;
+}
+
+.ask-format-card__price {
+  font-size: 1.9rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.ask-format-card__queue {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 0.8rem;
+  background: #f7bc55;
+  color: #6a4a1a;
+  padding: 0.32rem 0.64rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.ask-format-card ul {
+  display: grid;
+  gap: 0.38rem;
+  margin: 0;
+  padding-left: 1.05rem;
+  line-height: 1.42;
+}
+
+.ask-price-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.54rem;
+}
+
+.ask-price-chip {
+  min-height: 2.3rem;
+  border-radius: 999px;
+  border: 1px solid #dbe2ec;
+  background: #edf3fb;
+  color: #475569;
+  padding: 0 0.94rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ask-price-chip.is-active {
+  border-color: #60a4e5;
+  background: #d9ecff;
+  color: #1f4f93;
+}
+
+.ask-consent {
+  display: flex;
+  gap: 0.58rem;
+  align-items: flex-start;
+  color: #5d6d80;
+  font-size: 0.95rem;
+}
+
+.ask-consent input {
+  margin-top: 0.22rem;
+}
+
+.ask-wizard-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.45rem;
+}
+
+.ask-wizard-actions--single {
+  grid-template-columns: 1fr;
+}
+
+.ask-wizard-button {
+  min-height: 3rem;
+  border-radius: 1rem;
+  border: 1px solid transparent;
+  padding: 0 1.1rem;
+  font-size: 1.02rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ask-wizard-button--primary {
+  background: #5fa4e5;
+  color: #ffffff;
+}
+
+.ask-wizard-button--primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ask-wizard-button--ghost {
+  border-color: #dce3ee;
+  background: #f3f5f9;
+  color: #334155;
+}
+
+.ask-wizard-footnote {
+  margin: 0.88rem 0 0;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+@media (max-width: 767px) {
+  .ask-wizard-card,
+  .ask-auth-card {
+    max-height: calc(100dvh - 1.2rem);
+    border-radius: 1.3rem;
+    padding: 1rem;
+  }
+
+  .ask-wizard-header h2 {
+    font-size: 1.7rem;
+  }
+
+  .ask-format-card__price {
+    font-size: 1.4rem;
   }
 }
 

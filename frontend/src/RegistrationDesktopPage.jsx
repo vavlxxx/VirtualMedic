@@ -167,6 +167,8 @@ function RegistrationDesktopPage() {
     <VirtualMedicAuthFrame
       title="Регистрация"
       subtitle="Выберите роль и создайте аккаунт. Для врача регистрация сразу включает заявку на подтверждение документов."
+      showCardBrand={false}
+      cardScrollable
     >
       <div className="vm-auth-form">
         {formError ? <div className="vm-auth-message is-error">{formError}</div> : null}

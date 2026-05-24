@@ -6,7 +6,7 @@ from src.api.v1.dependencies.auth import require_roles, require_verified_doctor
 from src.api.v1.dependencies.db import DBDep
 from src.models.auth import User
 from src.models.enums import UserRole
-from src.schemas.qa import QuestionCommentCreateDTO, QuestionCreateDTO, QuestionDTO
+from src.schemas.qa import FreeQueueStatusDTO, QuestionCommentCreateDTO, QuestionCreateDTO, QuestionDTO
 from src.services.qa import QuestionService
 
 router = APIRouter(prefix="/questions", tags=["Q&A"])
@@ -22,6 +22,11 @@ async def list_questions(
     limit: int = Query(default=20, ge=1, le=100),
 ) -> list[QuestionDTO]:
     return await QuestionService(db).list_questions(offset=offset, limit=limit)
+
+
+@router.get("/free-queue", response_model=FreeQueueStatusDTO)
+async def get_free_queue_status(db: DBDep) -> FreeQueueStatusDTO:
+    return await QuestionService(db).get_free_queue_status()
 
 
 @router.get("/{question_id}", response_model=QuestionDTO)
