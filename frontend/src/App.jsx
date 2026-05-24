@@ -8,11 +8,9 @@ import {
   buildDoctorProfileHref,
   buildQuestionHref,
   getDisplayName,
-  getInitials,
 } from './publicPageUtils'
 import { AppLink } from './router'
 import { getDefaultAuthenticatedPath, routes } from './routes'
-import virtualmedicIcon from './assets/virtualmedic-icon.png'
 import { AskDoctorWizardModal } from './AskDoctorWizardModal'
 import {
   formatRelativeQuestionTime,
@@ -20,21 +18,9 @@ import {
   getQuestionCategory,
   summarizeQuestion,
 } from './virtualmedicReference'
+import { VirtualMedicFooter, VirtualMedicHeader } from './VirtualMedicLayout'
+import { ProfileImage } from './ProfileImage'
 import './App.css'
-
-const navItems = [
-  { label: 'Врачи', href: routes.doctors, type: 'route' },
-  { label: 'Вопросы', href: routes.questions, type: 'route' },
-  { label: 'Специальности', href: '#specialties', type: 'anchor' },
-  { label: 'О платформе', href: '#about', type: 'anchor' },
-]
-
-const stats = [
-  { value: '500+', label: 'врачей' },
-  { value: '10к+', label: 'консультаций' },
-  { value: '4.9', label: 'рейтинг' },
-  { value: '15', label: 'мин. ожидание' },
-]
 
 const specialties = [
   { icon: 'stethoscope', name: 'Терапевт' },
@@ -88,17 +74,16 @@ function App() {
   const heroVisualRef = useRef(null)
   const mobileTestimonialsTrackRef = useRef(null)
   const [typedSymptom, setTypedSymptom] = useState('')
+  const [heroQuestion, setHeroQuestion] = useState('')
   const [showTypeCursor, setShowTypeCursor] = useState(true)
   const [testimonials, setTestimonials] = useState([])
   const [isTestimonialsLoading, setIsTestimonialsLoading] = useState(true)
   const [activeMobileTestimonial, setActiveMobileTestimonial] = useState(0)
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [liveQuestions, setLiveQuestions] = useState([])
   const [onlineDoctors, setOnlineDoctors] = useState([])
   const [isLiveFeedLoading, setIsLiveFeedLoading] = useState(true)
   const [liveFeedError, setLiveFeedError] = useState('')
   const [liveFeedUpdatedAt, setLiveFeedUpdatedAt] = useState(null)
-  const [heroQuestion, setHeroQuestion] = useState('')
   const [isAskDoctorModalOpen, setIsAskDoctorModalOpen] = useState(false)
 
   const animatedPlaceholder = `Например: ${typedSymptom}${showTypeCursor ? '|' : ' '}`
@@ -106,11 +91,13 @@ function App() {
   const dashboardHref = auth.isAuthenticated
     ? getDefaultAuthenticatedPath(auth.user)
     : routes.register
-  const dashboardLabel = auth.isAuthenticated
-    ? auth.hasRole('admin', 'superuser')
-      ? 'Панель модерации'
-      : 'Мой профиль'
-    : 'Регистрация'
+  const totalAnswers = liveQuestions.reduce((total, question) => total + question.comments.length, 0)
+  const platformStats = [
+    { value: onlineDoctors.length, label: 'врачей онлайн' },
+    { value: liveQuestions.length, label: 'открытых вопросов' },
+    { value: totalAnswers, label: 'ответов врачей' },
+    { value: specialties.length, label: 'направлений' },
+  ]
 
   const openAskDoctorModal = () => {
     setIsAskDoctorModalOpen(true)
@@ -290,36 +277,6 @@ function App() {
     )
   }, [mobileTestimonialsCount])
 
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 768) {
-        setIsMobileMenuOpen(false)
-      }
-    }
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        setIsMobileMenuOpen(false)
-      }
-    }
-
-    window.addEventListener('resize', handleResize)
-    window.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      window.removeEventListener('resize', handleResize)
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [])
-
-  useEffect(() => {
-    document.body.style.overflow = isMobileMenuOpen ? 'hidden' : ''
-
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [isMobileMenuOpen])
-
   useLayoutEffect(() => {
     gsap.registerPlugin(ScrollTrigger)
 
@@ -392,30 +349,12 @@ function App() {
         },
       })
 
-      gsap.from('.js-footer-col', {
-        y: 24,
-        opacity: 0,
-        duration: 0.7,
-        stagger: 0.08,
-        ease: 'power2.out',
-        scrollTrigger: {
-          trigger: '.js-footer-grid',
-          start: 'top 86%',
-          once: true,
-        },
-      })
-
       const card = heroVisualRef.current
       const canUseParallax = window.matchMedia(
         '(hover: hover) and (pointer: fine)',
       ).matches
 
       if (card && canUseParallax) {
-        gsap.set(card, {
-          transformPerspective: 900,
-          transformStyle: 'preserve-3d',
-        })
-
         const moveCardX = gsap.quickTo(card, 'x', {
           duration: 0.45,
           ease: 'power3.out',
@@ -424,30 +363,18 @@ function App() {
           duration: 0.45,
           ease: 'power3.out',
         })
-        const rotateCardX = gsap.quickTo(card, 'rotateX', {
-          duration: 0.55,
-          ease: 'power3.out',
-        })
-        const rotateCardY = gsap.quickTo(card, 'rotateY', {
-          duration: 0.55,
-          ease: 'power3.out',
-        })
 
         const handlePointerMove = (event) => {
           const xRatio = event.clientX / window.innerWidth - 0.5
           const yRatio = event.clientY / window.innerHeight - 0.5
 
-          moveCardX(xRatio * 10)
-          moveCardY(yRatio * 10)
-          rotateCardY(xRatio * 5)
-          rotateCardX(yRatio * -5)
+          moveCardX(xRatio * 8)
+          moveCardY(yRatio * 8)
         }
 
         const handlePointerLeave = () => {
           moveCardX(0)
           moveCardY(0)
-          rotateCardX(0)
-          rotateCardY(0)
         }
 
         window.addEventListener('pointermove', handlePointerMove, {
@@ -472,138 +399,7 @@ function App() {
 
   return (
     <div ref={rootRef} className="app-shell bg-background-light text-slate-900">
-      <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md">
-        <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between px-4 sm:px-6 md:h-20 lg:px-8">
-          <a
-            className="flex items-center gap-3"
-            href="#hero"
-            onClick={() => setIsMobileMenuOpen(false)}
-          >
-            <img
-              alt="VirtualMedic"
-              className="h-9 w-9 rounded-lg object-cover md:h-11 md:w-11 md:rounded-xl"
-              src={virtualmedicIcon}
-            />
-            <h1 className="text-lg font-bold tracking-tight text-primary sm:text-xl md:text-2xl">
-              Virtual<span className="text-slate-900">Medic</span>
-            </h1>
-          </a>
-
-          <nav className="hidden items-center gap-8 xl:flex">
-            {navItems.map((item) => (
-              item.type === 'route' ? (
-                <AppLink
-                  key={item.label}
-                  className="text-sm font-semibold text-slate-600 transition-colors hover:text-primary"
-                  href={item.href}
-                >
-                  {item.label}
-                </AppLink>
-              ) : (
-                <a
-                  key={item.label}
-                  className="text-sm font-semibold text-slate-600 transition-colors hover:text-primary"
-                  href={item.href}
-                >
-                  {item.label}
-                </a>
-              )
-            ))}
-          </nav>
-
-          <button
-            aria-controls="mobile-main-menu"
-            aria-expanded={isMobileMenuOpen}
-            aria-label={isMobileMenuOpen ? 'Закрыть меню' : 'Открыть меню'}
-            className="rounded-lg p-1 text-slate-600 transition-colors hover:bg-slate-100 md:hidden"
-            onClick={() => setIsMobileMenuOpen((current) => !current)}
-            type="button"
-          >
-            <span className="material-symbols-outlined text-2xl">
-              {isMobileMenuOpen ? 'close' : 'menu'}
-            </span>
-          </button>
-
-          <div className="hidden items-center gap-2 sm:gap-4 md:flex">
-            {!auth.isAuthenticated ? (
-              <AppLink
-                className="hidden rounded-xl px-4 py-2.5 text-sm font-semibold text-primary transition-all hover:bg-primary/5 lg:block"
-                href={routes.login}
-              >
-                Войти
-              </AppLink>
-            ) : (
-              <AppLink
-                className="hidden rounded-xl px-4 py-2.5 text-sm font-semibold text-primary transition-all hover:bg-primary/5 lg:block"
-                href={routes.questions}
-              >
-                Q&A
-              </AppLink>
-            )}
-            <AppLink
-              className="rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20 transition-all hover:bg-[#142e70]"
-              href={dashboardHref}
-            >
-              {dashboardLabel}
-            </AppLink>
-          </div>
-        </div>
-
-        <div
-          className={`md:hidden ${isMobileMenuOpen ? 'pointer-events-auto max-h-[75vh] opacity-100' : 'pointer-events-none max-h-0 opacity-0'} overflow-hidden border-t border-slate-100 bg-white transition-all duration-300`}
-          id="mobile-main-menu"
-        >
-          <nav className="mx-auto flex w-full max-w-7xl flex-col gap-1 px-4 py-4 sm:px-6">
-            {navItems.map((item) => (
-              item.type === 'route' ? (
-                <AppLink
-                  key={`${item.label}-mobile`}
-                  className="rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-primary"
-                  href={item.href}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  {item.label}
-                </AppLink>
-              ) : (
-                <a
-                  key={`${item.label}-mobile`}
-                  className="rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-primary"
-                  href={item.href}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  {item.label}
-                </a>
-              )
-            ))}
-
-            <div className="mt-2 flex flex-col gap-2 border-t border-slate-100 pt-3">
-              <AppLink
-                className="rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-primary transition-all hover:bg-primary/5"
-                href={auth.isAuthenticated ? routes.questions : routes.login}
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                {auth.isAuthenticated ? 'Вопросы и ответы' : 'Войти'}
-              </AppLink>
-              <AppLink
-                className="rounded-xl bg-primary px-3 py-2.5 text-left text-sm font-bold text-white shadow-lg shadow-primary/20 transition-all hover:bg-[#142e70]"
-                href={dashboardHref}
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                {dashboardLabel}
-              </AppLink>
-            </div>
-          </nav>
-        </div>
-      </header>
-
-      {isMobileMenuOpen && (
-        <button
-          aria-label="Закрыть мобильное меню"
-          className="fixed inset-0 top-14 z-40 bg-slate-900/20 md:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
-          type="button"
-        />
-      )}
+      <VirtualMedicHeader active="home" />
 
       <main>
         <section
@@ -675,7 +471,7 @@ function App() {
                     <span className="font-bold">4.9/5</span>
                   </div>
                   <p className="font-medium text-slate-500">
-                    от 50,000+ довольных пациентов
+                    {totalAnswers ? `${totalAnswers} ответов врачей в ленте` : 'специалисты отвечают в открытой ленте'}
                   </p>
                 </div>
               </div>
@@ -735,7 +531,7 @@ function App() {
                     <span className="font-bold">4.9/5</span>
                   </div>
                   <p className="text-[10px] font-medium text-slate-500">
-                    50,000+ пациентов
+                    {totalAnswers ? `${totalAnswers} ответов` : 'открытая лента'}
                   </p>
                 </div>
               </div>
@@ -746,7 +542,7 @@ function App() {
         <section className="js-reveal-section px-4 pb-10 sm:px-6 sm:py-10 lg:px-8">
           <div className="js-stats-grid relative mx-auto grid w-full max-w-7xl grid-cols-2 gap-y-6 gap-x-4 overflow-hidden rounded-2xl bg-primary p-5 text-white shadow-xl shadow-primary/20 sm:rounded-[2.5rem] sm:p-8 md:grid-cols-4 md:gap-10 lg:p-12 xl:p-16">
             <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-white/5 blur-2xl sm:-top-32 sm:-right-32 sm:h-64 sm:w-64 sm:blur-none" />
-            {stats.map((stat) => (
+            {platformStats.map((stat) => (
               <div
                 key={stat.label}
                 className="js-stats-item flex flex-col items-center gap-0.5 text-center md:gap-2"
@@ -788,9 +584,10 @@ function App() {
 
             <div className="js-specialties-grid grid grid-cols-2 gap-3 sm:gap-6 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
               {specialties.map((item, index) => (
-                <div
+                <AppLink
                   key={item.name}
                   className={`js-specialty-item group cursor-pointer rounded-xl border border-slate-100 bg-white p-4 text-center shadow-sm transition-all hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/5 sm:rounded-[2rem] sm:p-6 lg:p-7 xl:p-8 ${index > 3 ? 'hidden md:block' : ''}`}
+                  href={`${routes.doctors}?search=${encodeURIComponent(item.name)}`}
                 >
                   <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-50 text-primary transition-all group-hover:bg-primary group-hover:text-white sm:mb-6 sm:h-16 sm:w-16 sm:rounded-2xl">
                     <span className="material-symbols-outlined text-2xl sm:text-3xl">
@@ -800,7 +597,7 @@ function App() {
                   <h4 className="text-xs font-bold text-slate-900 sm:text-base">
                     {item.name}
                   </h4>
-                </div>
+                </AppLink>
               ))}
             </div>
 
@@ -918,7 +715,7 @@ function App() {
                             style={{ background: profile.theme.background }}
                             aria-hidden="true"
                           >
-                            {getInitials(doctor)}
+                            <ProfileImage alt={getDisplayName(doctor)} src={doctor.avatar_url} />
                           </span>
                           <span className="vm-live-doctor-item__body">
                             <strong>{getDisplayName(doctor)}</strong>
@@ -1146,199 +943,14 @@ function App() {
         </section>
       </main>
 
-      <footer
-        className="js-reveal-section scroll-mt-20 border-t border-slate-100 bg-white px-4 pt-8 pb-8 sm:px-6 sm:pt-20 sm:pb-12 lg:px-8 xl:pt-24"
-        id="about"
-      >
-        <div className="md:hidden">
-          <div className="flex flex-col gap-6">
-            <div>
-              <div className="mb-3 flex items-center gap-2">
-                <img alt="VirtualMedic" className="h-8 w-8 rounded-lg object-cover" src={virtualmedicIcon} />
-                <h2 className="text-lg font-bold tracking-tight text-primary">
-                  VirtualMedic
-                </h2>
-              </div>
-              <p className="text-xs leading-relaxed text-slate-500">
-                Лицензированная платформа для дистанционного медицинского
-                обслуживания в РФ.
-              </p>
-            </div>
-
-            <div className="space-y-0">
-              <div className="border-t border-slate-100">
-                <button className="flex w-full items-center justify-between py-4 text-left text-xs font-bold tracking-wider text-slate-900 uppercase">
-                  Для пациентов
-                  <span className="material-symbols-outlined text-slate-400">
-                    expand_more
-                  </span>
-                </button>
-              </div>
-              <div className="border-t border-slate-100">
-                <button className="flex w-full items-center justify-between py-4 text-left text-xs font-bold tracking-wider text-slate-900 uppercase">
-                  Компания
-                  <span className="material-symbols-outlined text-slate-400">
-                    expand_more
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <p className="mb-1 text-lg font-bold text-primary">8 (800) 555-35-35</p>
-              <p className="mb-4 text-[10px] text-slate-500">
-                Ежедневно с 09:00 до 21:00 (МСК)
-              </p>
-              <div className="flex gap-3">
-                <AppLink
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-primary"
-                  href={routes.doctors}
-                >
-                  MD
-                </AppLink>
-                <AppLink
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-primary"
-                  href={routes.questions}
-                >
-                  QA
-                </AppLink>
-              </div>
-            </div>
-
-            <div className="space-y-3 border-t border-slate-100 pt-6 text-[10px] text-slate-400">
-              <p>
-                © 2024 VirtualMedic. Все права защищены.
-                <br />
-                ООО "ВиртуалМедик Диджитал".
-              </p>
-              <div className="flex flex-wrap gap-x-4 gap-y-2">
-                <AppLink className="underline underline-offset-2 hover:text-primary" href={routes.login}>
-                  Вход в систему
-                </AppLink>
-                <AppLink className="underline underline-offset-2 hover:text-primary" href={routes.register}>
-                  Регистрация
-                </AppLink>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="js-footer-grid mx-auto mb-14 hidden w-full max-w-7xl grid-cols-1 gap-10 sm:mb-16 md:grid md:grid-cols-2 lg:mb-20 lg:grid-cols-4 lg:gap-12">
-          <div className="js-footer-col">
-            <div className="mb-8 flex items-center gap-3">
-              <img alt="VirtualMedic" className="h-10 w-10 rounded-xl object-cover" src={virtualmedicIcon} />
-              <h2 className="text-2xl font-bold tracking-tight text-primary">
-                VirtualMedic
-              </h2>
-            </div>
-            <p className="mb-6 leading-relaxed text-slate-500">
-              Лицензированная платформа для дистанционного медицинского
-              обслуживания и консультаций в РФ.
-            </p>
-            <div className="flex gap-4">
-              <AppLink
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-primary transition-all hover:bg-primary hover:text-white"
-                href={routes.doctors}
-              >
-                MD
-              </AppLink>
-              <AppLink
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-primary transition-all hover:bg-primary hover:text-white"
-                href={routes.questions}
-              >
-                QA
-              </AppLink>
-            </div>
-          </div>
-
-          <div className="js-footer-col">
-            <h6 className="mb-6 font-bold text-slate-900 sm:mb-8">Для пациентов</h6>
-            <ul className="space-y-4 text-slate-500">
-              <li>
-                <AppLink className="transition-colors hover:text-primary" href={routes.doctors}>
-                  Найти врача
-                </AppLink>
-              </li>
-              <li>
-                <a className="transition-colors hover:text-primary" href="#specialties">
-                  Все специальности
-                </a>
-              </li>
-              <li>
-                <a className="transition-colors hover:text-primary" href="#services">
-                  Как это работает
-                </a>
-              </li>
-              <li>
-                <AppLink className="transition-colors hover:text-primary" href={routes.questions}>
-                  Вопросы и ответы
-                </AppLink>
-              </li>
-            </ul>
-          </div>
-
-          <div className="js-footer-col">
-            <h6 className="mb-6 font-bold text-slate-900 sm:mb-8">Компания</h6>
-            <ul className="space-y-4 text-slate-500">
-              <li>
-                <a className="transition-colors hover:text-primary" href="#about">
-                  О нас
-                </a>
-              </li>
-              <li>
-                <AppLink className="transition-colors hover:text-primary" href={routes.account}>
-                  Мой профиль
-                </AppLink>
-              </li>
-              <li>
-                <AppLink className="transition-colors hover:text-primary" href={routes.login}>
-                  Войти
-                </AppLink>
-              </li>
-              <li>
-                <AppLink className="transition-colors hover:text-primary" href={routes.register}>
-                  Создать аккаунт
-                </AppLink>
-              </li>
-            </ul>
-          </div>
-
-          <div className="js-footer-col">
-            <h6 className="mb-6 font-bold text-slate-900 sm:mb-8">Служба поддержки</h6>
-            <div className="space-y-4">
-              <p className="text-lg font-bold text-primary">8 (800) 555-35-35</p>
-              <p className="text-sm text-slate-500">
-                Ежедневно с 09:00 до 21:00 (МСК)
-              </p>
-              <AppLink
-                className="flex items-center gap-2 border-b-2 border-primary/20 pb-1 font-bold text-slate-900 transition-all hover:border-primary"
-                href={routes.questions}
-              >
-                Написать в чат
-              </AppLink>
-            </div>
-          </div>
-        </div>
-
-        <div className="mx-auto hidden w-full max-w-7xl flex-col items-center justify-between gap-4 border-t border-slate-100 pt-8 text-center text-sm text-slate-400 md:flex lg:flex-row lg:gap-6 lg:text-left">
-          <p>© 2024 VirtualMedic. Все права защищены. ООО "ВиртуалМедик Диджитал".</p>
-          <div className="flex flex-wrap justify-center gap-6 sm:gap-8 lg:justify-end">
-            <AppLink className="transition-colors hover:text-slate-900" href={routes.login}>
-              Вход
-            </AppLink>
-            <AppLink className="transition-colors hover:text-slate-900" href={routes.register}>
-              Регистрация
-            </AppLink>
-          </div>
-        </div>
-      </footer>
-
+      <VirtualMedicFooter />
       <AskDoctorWizardModal
         isOpen={isAskDoctorModalOpen}
         initialQuestion={heroQuestion}
         onClose={closeAskDoctorModal}
         onQuestionCreated={() => setHeroQuestion('')}
       />
+
     </div>
   )
 }

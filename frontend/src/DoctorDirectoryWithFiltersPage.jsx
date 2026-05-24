@@ -1,23 +1,39 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ApiError, apiClient } from './api/client'
-import { useAuth } from './auth/AuthContext'
 import { AppLink } from './router'
-import { getDefaultAuthenticatedPath, routes } from './routes'
-import { buildDoctorProfileHref, getDisplayName, getInitials, parsePositiveInteger } from './publicPageUtils'
+import { buildDoctorProfileHref, getDisplayName, parsePositiveInteger } from './publicPageUtils'
 import { VirtualMedicPage } from './VirtualMedicLayout'
 import { getDoctorVisualProfile } from './virtualmedicReference'
+import { ProfileImage } from './ProfileImage'
 
-const DOCTORS_PAGE_SIZE = 18
+const DOCTORS_FETCH_LIMIT = 100
+const DOCTORS_PAGE_SIZE = 6
+const PRICE_STEP = 250
+const RATING_STEP = 0.1
+const DEFAULT_RATING_RANGE = [0, 5]
+const DEFAULT_PRICE_RANGE = [0, 10000]
+
+function formatCurrency(value) {
+  return `${value.toLocaleString('ru-RU')} ₽`
+}
+
+function formatRating(value) {
+  return Number(value).toFixed(1)
+}
 
 function DoctorDirectoryWithFiltersPage() {
-  const auth = useAuth()
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedSpecializationId, setSelectedSpecializationId] = useState(null)
-  const [minimumExperience, setMinimumExperience] = useState(0)
-  const [minimumRating, setMinimumRating] = useState(0)
-  const [minimumPrice, setMinimumPrice] = useState('')
-  const [maximumPrice, setMaximumPrice] = useState('')
-  const [onlineOnly, setOnlineOnly] = useState(false)
+  const [searchQuery, setSearchQuery] = useState(() => new URLSearchParams(window.location.search).get('search') || '')
+  const [draftSpecializationIds, setDraftSpecializationIds] = useState([])
+  const [appliedSpecializationIds, setAppliedSpecializationIds] = useState([])
+  const [draftMinimumExperience, setDraftMinimumExperience] = useState(0)
+  const [appliedMinimumExperience, setAppliedMinimumExperience] = useState(0)
+  const [draftRatingRange, setDraftRatingRange] = useState(DEFAULT_RATING_RANGE)
+  const [appliedRatingRange, setAppliedRatingRange] = useState(DEFAULT_RATING_RANGE)
+  const [draftPriceRange, setDraftPriceRange] = useState(DEFAULT_PRICE_RANGE)
+  const [appliedPriceRange, setAppliedPriceRange] = useState(DEFAULT_PRICE_RANGE)
+  const [draftOnlineOnly, setDraftOnlineOnly] = useState(false)
+  const [appliedOnlineOnly, setAppliedOnlineOnly] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
 
   const [specializations, setSpecializations] = useState([])
   const [doctors, setDoctors] = useState([])
@@ -34,7 +50,7 @@ function DoctorDirectoryWithFiltersPage() {
       try {
         const [specializationsResponse, doctorsResponse] = await Promise.all([
           apiClient.listSpecializations(),
-          apiClient.listDoctors({ offset: 0, limit: DOCTORS_PAGE_SIZE }),
+          apiClient.listDoctors({ offset: 0, limit: DOCTORS_FETCH_LIMIT }),
         ])
 
         if (!isCancelled) {
@@ -68,13 +84,43 @@ function DoctorDirectoryWithFiltersPage() {
     [doctors],
   )
 
+  const priceBounds = useMemo(() => {
+    if (!enrichedDoctors.length) {
+      return DEFAULT_PRICE_RANGE
+    }
+
+    const prices = enrichedDoctors.map((doctor) => doctor.visualProfile.price)
+    return [Math.min(...prices), Math.max(...prices)]
+  }, [enrichedDoctors])
+
+  useEffect(() => {
+    setDraftPriceRange(priceBounds)
+    setAppliedPriceRange(priceBounds)
+  }, [priceBounds])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [
+    appliedMinimumExperience,
+    appliedOnlineOnly,
+    appliedPriceRange,
+    appliedRatingRange,
+    appliedSpecializationIds,
+    searchQuery,
+  ])
+
+  const selectedSpecializations = useMemo(
+    () => specializations.filter((item) => appliedSpecializationIds.includes(item.id)),
+    [appliedSpecializationIds, specializations],
+  )
+
   const filteredDoctors = useMemo(() => {
     const normalizedSearch = searchQuery.trim().toLowerCase()
 
     return enrichedDoctors.filter((doctor) => {
       const specializationMatches =
-        !selectedSpecializationId ||
-        doctor.specializations.some((item) => item.id === selectedSpecializationId)
+        !appliedSpecializationIds.length ||
+        doctor.specializations.some((item) => appliedSpecializationIds.includes(item.id))
 
       const searchMatches =
         !normalizedSearch ||
@@ -82,38 +128,86 @@ function DoctorDirectoryWithFiltersPage() {
         doctor.specializations.some((item) => item.name.toLowerCase().includes(normalizedSearch))
 
       const experienceValue = parsePositiveInteger(doctor.visualProfile.experience.match(/\d+/)?.[0]) || 0
-      const ratingMatches = Number(doctor.visualProfile.rating) >= minimumRating
-      const experienceMatches = experienceValue >= minimumExperience
+      const doctorRating = Number(doctor.visualProfile.rating)
+      const ratingMatches = doctorRating >= appliedRatingRange[0] && doctorRating <= appliedRatingRange[1]
+      const experienceMatches = experienceValue >= appliedMinimumExperience
       const priceMatches =
-        (!minimumPrice || doctor.visualProfile.price >= Number(minimumPrice)) &&
-        (!maximumPrice || doctor.visualProfile.price <= Number(maximumPrice))
-      const onlineMatches = !onlineOnly || doctor.is_online
+        doctor.visualProfile.price >= appliedPriceRange[0] &&
+        doctor.visualProfile.price <= appliedPriceRange[1]
+      const onlineMatches = !appliedOnlineOnly || doctor.is_online
 
       return specializationMatches && searchMatches && ratingMatches && experienceMatches && priceMatches && onlineMatches
     })
   }, [
+    appliedMinimumExperience,
+    appliedOnlineOnly,
+    appliedPriceRange,
+    appliedRatingRange,
+    appliedSpecializationIds,
     enrichedDoctors,
-    maximumPrice,
-    minimumExperience,
-    minimumPrice,
-    minimumRating,
-    onlineOnly,
     searchQuery,
-    selectedSpecializationId,
   ])
 
-  const actionHref = auth.isAuthenticated ? getDefaultAuthenticatedPath(auth.user) : routes.login
-  const actionLabel = auth.isAuthenticated ? 'Личный кабинет' : 'Войти'
+  const totalPages = Math.max(1, Math.ceil(filteredDoctors.length / DOCTORS_PAGE_SIZE))
+  const visibleDoctors = filteredDoctors.slice(
+    (currentPage - 1) * DOCTORS_PAGE_SIZE,
+    currentPage * DOCTORS_PAGE_SIZE,
+  )
+
+  const updateRange = (setter) => (index, value) => {
+    const numericValue = Number(value)
+
+    setter((current) => {
+      if (index === 0) {
+        return [Math.min(numericValue, current[1]), current[1]]
+      }
+
+      return [current[0], Math.max(numericValue, current[0])]
+    })
+  }
+
+  const updateDraftPriceRange = updateRange(setDraftPriceRange)
+  const updateDraftRatingRange = updateRange(setDraftRatingRange)
+
+  const toggleDraftSpecialization = (specializationId) => {
+    setDraftSpecializationIds((current) =>
+      current.includes(specializationId)
+        ? current.filter((id) => id !== specializationId)
+        : [...current, specializationId],
+    )
+  }
+
+  const removeAppliedSpecialization = (specializationId) => {
+    setAppliedSpecializationIds((current) => current.filter((id) => id !== specializationId))
+    setDraftSpecializationIds((current) => current.filter((id) => id !== specializationId))
+  }
+
+  const applyFilters = () => {
+    setAppliedSpecializationIds(draftSpecializationIds)
+    setAppliedMinimumExperience(draftMinimumExperience)
+    setAppliedRatingRange(draftRatingRange)
+    setAppliedPriceRange(draftPriceRange)
+    setAppliedOnlineOnly(draftOnlineOnly)
+    setCurrentPage(1)
+  }
+
+  const resetFilters = () => {
+    setDraftSpecializationIds([])
+    setAppliedSpecializationIds([])
+    setDraftMinimumExperience(0)
+    setAppliedMinimumExperience(0)
+    setDraftRatingRange(DEFAULT_RATING_RANGE)
+    setAppliedRatingRange(DEFAULT_RATING_RANGE)
+    setDraftPriceRange(priceBounds)
+    setAppliedPriceRange(priceBounds)
+    setDraftOnlineOnly(false)
+    setAppliedOnlineOnly(false)
+    setSearchQuery('')
+    setCurrentPage(1)
+  }
 
   return (
-    <VirtualMedicPage
-      activeNav="doctors"
-      actionHref={actionHref}
-      actionLabel={actionLabel}
-      searchPlaceholder="Поиск врача или услуги"
-      searchValue={searchQuery}
-      onSearchChange={(event) => setSearchQuery(event.target.value)}
-    >
+    <VirtualMedicPage activeNav="doctors">
       <section className="vm-page-section">
         <div className="vm-shell">
           <div className="vm-breadcrumbs">
@@ -128,61 +222,59 @@ function DoctorDirectoryWithFiltersPage() {
             </div>
           </div>
 
-          <div className="vm-chip-row">
-            <button
-              className={`vm-chip ${selectedSpecializationId === null ? 'is-active' : ''}`}
-              type="button"
-              onClick={() => setSelectedSpecializationId(null)}
-            >
-              Все врачи
-            </button>
-            {specializations.map((specialization) => (
-              <button
-                key={specialization.id}
-                className={`vm-chip ${selectedSpecializationId === specialization.id ? 'is-active' : ''}`}
-                type="button"
-                onClick={() => setSelectedSpecializationId(specialization.id)}
-              >
-                {specialization.name}
-              </button>
-            ))}
+          <div className="vm-active-filter-row" aria-label="Выбранные специальности">
+            {!selectedSpecializations.length ? (
+              <span className="vm-active-filter-row__empty">Поиск идёт по всем специальностям</span>
+            ) : (
+              selectedSpecializations.map((specialization) => (
+                <button
+                  className="vm-filter-token"
+                  key={specialization.id}
+                  type="button"
+                  onClick={() => removeAppliedSpecialization(specialization.id)}
+                >
+                  {specialization.name}
+                  <span className="material-symbols-outlined" aria-hidden="true">close</span>
+                </button>
+              ))
+            )}
           </div>
 
           <div className="vm-grid vm-directory-layout">
             <aside className="vm-card vm-filter-panel">
               <div className="vm-filter-panel__header">
                 <h2>Фильтры</h2>
-                <button className="vm-button vm-button--ghost" type="button" onClick={() => {
-                  setSelectedSpecializationId(null)
-                  setMinimumExperience(0)
-                  setMinimumRating(0)
-                  setMinimumPrice('')
-                  setMaximumPrice('')
-                  setOnlineOnly(false)
-                  setSearchQuery('')
-                }}>
+                <button className="vm-button vm-button--ghost" type="button" onClick={resetFilters}>
                   Сбросить
                 </button>
               </div>
 
               <div className="vm-field-stack">
                 <div className="vm-field-block">
-                  <label className="vm-field-label">
+                  <span className="vm-field-label">
                     <span className="material-symbols-outlined">medical_services</span>
                     Специальность
-                  </label>
-                  <select
-                    className="vm-select"
-                    value={selectedSpecializationId || ''}
-                    onChange={(event) => setSelectedSpecializationId(parsePositiveInteger(event.target.value))}
-                  >
-                    <option value="">Все специальности</option>
-                    {specializations.map((specialization) => (
-                      <option key={specialization.id} value={specialization.id}>
-                        {specialization.name}
-                      </option>
-                    ))}
-                  </select>
+                  </span>
+                  <details className="vm-multiselect">
+                    <summary>
+                      {draftSpecializationIds.length
+                        ? `Выбрано: ${draftSpecializationIds.length}`
+                        : 'Все специальности'}
+                      <span className="material-symbols-outlined" aria-hidden="true">expand_more</span>
+                    </summary>
+                    <div className="vm-multiselect__panel">
+                      {specializations.map((specialization) => (
+                        <label className="vm-multiselect__option" key={specialization.id}>
+                          <input
+                            type="checkbox"
+                            checked={draftSpecializationIds.includes(specialization.id)}
+                            onChange={() => toggleDraftSpecialization(specialization.id)}
+                          />
+                          <span>{specialization.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </details>
                 </div>
 
                 <div className="vm-field-block">
@@ -193,8 +285,8 @@ function DoctorDirectoryWithFiltersPage() {
                   <label className="vm-checkbox">
                     <input
                       type="checkbox"
-                      checked={onlineOnly}
-                      onChange={(event) => setOnlineOnly(event.target.checked)}
+                      checked={draftOnlineOnly}
+                      onChange={(event) => setDraftOnlineOnly(event.target.checked)}
                     />
                     Только врачи онлайн
                   </label>
@@ -205,19 +297,16 @@ function DoctorDirectoryWithFiltersPage() {
                     <span className="material-symbols-outlined">workspace_premium</span>
                     Опыт работы
                   </label>
-                  <div className="vm-checkbox-list">
-                    {[0, 5, 10, 15].map((years) => (
-                      <label className="vm-checkbox" key={years}>
-                        <input
-                          type="radio"
-                          name="experience"
-                          checked={minimumExperience === years}
-                          onChange={() => setMinimumExperience(years)}
-                        />
-                        {years === 0 ? 'Любой стаж' : `Более ${years} лет`}
-                      </label>
-                    ))}
-                  </div>
+                  <select
+                    className="vm-select"
+                    value={draftMinimumExperience}
+                    onChange={(event) => setDraftMinimumExperience(Number(event.target.value))}
+                  >
+                    <option value={0}>Любой стаж</option>
+                    <option value={5}>Более 5 лет</option>
+                    <option value={10}>Более 10 лет</option>
+                    <option value={15}>Более 15 лет</option>
+                  </select>
                 </div>
 
                 <div className="vm-field-block">
@@ -225,21 +314,36 @@ function DoctorDirectoryWithFiltersPage() {
                     <span className="material-symbols-outlined">payments</span>
                     Стоимость приема
                   </label>
-                  <div className="vm-inline-meta">
-                    <input
-                      className="vm-input"
-                      type="number"
-                      placeholder="От"
-                      value={minimumPrice}
-                      onChange={(event) => setMinimumPrice(event.target.value)}
-                    />
-                    <input
-                      className="vm-input"
-                      type="number"
-                      placeholder="До"
-                      value={maximumPrice}
-                      onChange={(event) => setMaximumPrice(event.target.value)}
-                    />
+                  <div className="vm-range-filter">
+                    <div className="vm-range-filter__values">
+                      <span>{formatCurrency(draftPriceRange[0])}</span>
+                      <span>{formatCurrency(draftPriceRange[1])}</span>
+                    </div>
+                    <div className="vm-range-filter__track">
+                      <span
+                        className="vm-range-filter__fill"
+                        style={{
+                          left: `${((draftPriceRange[0] - priceBounds[0]) / Math.max(priceBounds[1] - priceBounds[0], 1)) * 100}%`,
+                          right: `${100 - ((draftPriceRange[1] - priceBounds[0]) / Math.max(priceBounds[1] - priceBounds[0], 1)) * 100}%`,
+                        }}
+                      />
+                      <input
+                        type="range"
+                        min={priceBounds[0]}
+                        max={priceBounds[1]}
+                        step={PRICE_STEP}
+                        value={draftPriceRange[0]}
+                        onChange={(event) => updateDraftPriceRange(0, event.target.value)}
+                      />
+                      <input
+                        type="range"
+                        min={priceBounds[0]}
+                        max={priceBounds[1]}
+                        step={PRICE_STEP}
+                        value={draftPriceRange[1]}
+                        onChange={(event) => updateDraftPriceRange(1, event.target.value)}
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -248,22 +352,40 @@ function DoctorDirectoryWithFiltersPage() {
                     <span className="material-symbols-outlined">star</span>
                     Рейтинг
                   </label>
-                  <div className="vm-checkbox-list">
-                    {[0, 4.5, 4.8].map((value) => (
-                      <label className="vm-checkbox" key={value}>
-                        <input
-                          type="radio"
-                          name="rating"
-                          checked={minimumRating === value}
-                          onChange={() => setMinimumRating(value)}
-                        />
-                        {value === 0 ? 'Любой рейтинг' : `${value}+`}
-                      </label>
-                    ))}
+                  <div className="vm-range-filter">
+                    <div className="vm-range-filter__values">
+                      <span>{formatRating(draftRatingRange[0])}</span>
+                      <span>{formatRating(draftRatingRange[1])}</span>
+                    </div>
+                    <div className="vm-range-filter__track">
+                      <span
+                        className="vm-range-filter__fill"
+                        style={{
+                          left: `${(draftRatingRange[0] / 5) * 100}%`,
+                          right: `${100 - (draftRatingRange[1] / 5) * 100}%`,
+                        }}
+                      />
+                      <input
+                        type="range"
+                        min="0"
+                        max="5"
+                        step={RATING_STEP}
+                        value={draftRatingRange[0]}
+                        onChange={(event) => updateDraftRatingRange(0, event.target.value)}
+                      />
+                      <input
+                        type="range"
+                        min="0"
+                        max="5"
+                        step={RATING_STEP}
+                        value={draftRatingRange[1]}
+                        onChange={(event) => updateDraftRatingRange(1, event.target.value)}
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <button className="vm-button" type="button">
+                <button className="vm-button" type="button" onClick={applyFilters}>
                   Применить
                 </button>
               </div>
@@ -287,12 +409,14 @@ function DoctorDirectoryWithFiltersPage() {
               {!isLoading && !errorMessage ? (
                 <>
                   <div className="vm-results-grid">
-                    {filteredDoctors.map((doctor) => (
+                    {visibleDoctors.map((doctor) => (
                       <article className="vm-card vm-doctor-card" key={doctor.id}>
-                        <div
-                          className="vm-doctor-card__visual"
-                          style={{ background: doctor.visualProfile.theme.background }}
-                        >
+                        <div className="vm-doctor-card__visual">
+                          <ProfileImage
+                            className="vm-doctor-card__photo"
+                            alt={getDisplayName(doctor)}
+                            src={doctor.avatar_url}
+                          />
                           <span className="vm-rating-badge">
                             <span className="material-symbols-outlined">star</span>
                             {doctor.visualProfile.rating}
@@ -303,9 +427,6 @@ function DoctorDirectoryWithFiltersPage() {
                               Сейчас на сайте
                             </span>
                           ) : null}
-                          <div className="vm-doctor-portrait" aria-hidden="true">
-                            {getInitials(doctor)}
-                          </div>
                         </div>
 
                         <div className="vm-doctor-card__body">
@@ -322,7 +443,9 @@ function DoctorDirectoryWithFiltersPage() {
                           <div className="vm-price-row">
                             <div>
                               <span className="vm-overline">Прием от</span>
-                              <strong>{doctor.visualProfile.price.toLocaleString('ru-RU')} ₽</strong>
+                              <strong className="vm-price-nowrap">
+                                {formatCurrency(doctor.visualProfile.price)}
+                              </strong>
                             </div>
                             <AppLink className="vm-button vm-button--soft" href={buildDoctorProfileHref(doctor.id)}>
                               Записаться
@@ -340,13 +463,38 @@ function DoctorDirectoryWithFiltersPage() {
                     </section>
                   ) : null}
 
-                  <div className="vm-pagination">
-                    <button type="button">‹</button>
-                    <button className="is-active" type="button">1</button>
-                    <button type="button">2</button>
-                    <button type="button">3</button>
-                    <button type="button">›</button>
-                  </div>
+                  {filteredDoctors.length > 0 && totalPages > 1 ? (
+                    <div className="vm-pagination">
+                      <button
+                        type="button"
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                      >
+                        ‹
+                      </button>
+                      {Array.from({ length: totalPages }).map((_, index) => {
+                        const page = index + 1
+
+                        return (
+                          <button
+                            className={currentPage === page ? 'is-active' : ''}
+                            key={page}
+                            type="button"
+                            onClick={() => setCurrentPage(page)}
+                          >
+                            {page}
+                          </button>
+                        )
+                      })}
+                      <button
+                        type="button"
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                      >
+                        ›
+                      </button>
+                    </div>
+                  ) : null}
                 </>
               ) : null}
             </div>

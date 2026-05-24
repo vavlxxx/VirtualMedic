@@ -3,7 +3,7 @@ import { ApiError, apiClient } from './api/client'
 import { useAuth } from './auth/AuthContext'
 import { AppLink } from './router'
 import { routes, withReturnTo } from './routes'
-import { buildQuestionHref, getInitials, trimMultilineText } from './publicPageUtils'
+import { buildQuestionHref, trimMultilineText } from './publicPageUtils'
 import { AskDoctorWizardModal } from './AskDoctorWizardModal'
 import { VirtualMedicPage } from './VirtualMedicLayout'
 import {
@@ -229,9 +229,15 @@ function PublicQuestionsFeedPage() {
                     <div className="vm-question-card__footer">
                       <div className="vm-inline-meta">
                         <div className="vm-avatar-stack" aria-hidden="true">
-                          {(question.comments.length ? question.comments : [question.author]).slice(0, 3).map((item) => (
-                            <span key={item.id || item.username}>{getInitials(item.author || item)}</span>
-                          ))}
+                          {(question.comments.length ? question.comments : [question.author]).slice(0, 3).map((item) => {
+                            const person = item.author || item
+
+                            return (
+                              <span key={item.id || person.username}>
+                                <ProfileImage alt="" src={person.avatar_url} />
+                              </span>
+                            )
+                          })}
                         </div>
                         <span className="vm-muted">
                           {hasAnswers ? 'Врачи консультируют' : 'Специалисты изучают вопрос'}

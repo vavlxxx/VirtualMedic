@@ -730,3 +730,33 @@
     padding-bottom: 6px;
   }
 }
+
+/* Keep legacy public states visually aligned with the flatter app shell. */
+.public-page {
+  background: #f4f6f8;
+}
+
+.public-page__ambient {
+  display: none;
+}
+
+.public-hero,
+.public-link-button,
+.public-inline-message,
+.modal-card,
+.state-card,
+.tag,
+.document-row,
+.profile-list__item {
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.public-link-button {
+  background-image: none;
+}
+
+.public-title,
+.public-panel__title {
+  letter-spacing: 0;
+}

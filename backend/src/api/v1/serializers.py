@@ -21,6 +21,7 @@ def to_user_profile(user: User) -> UserProfileDTO:
         role=user.role,
         first_name=user.first_name,
         last_name=user.last_name,
+        avatar_url=user.avatar_url,
         is_active=user.is_active,
         is_verified_doctor=user.is_verified_doctor,
         specializations=[

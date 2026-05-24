@@ -1,6 +1,9 @@
-import { AppLink } from './router'
+import { AppLink, useRouter } from './router'
+import { useAuth } from './auth/AuthContext'
+import { getDisplayName } from './publicPageUtils'
 import { routes } from './routes'
 import virtualmedicIcon from './assets/virtualmedic-icon.png'
+import { ProfileImage } from './ProfileImage'
 
 function VirtualMedicLogo() {
   return (
@@ -11,36 +14,25 @@ function VirtualMedicLogo() {
   )
 }
 
-function SearchField({ placeholder = 'Поиск врача или услуги', value = '', onChange = null }) {
-  return (
-    <label className="vm-search">
-      <span className="material-symbols-outlined">search</span>
-      {onChange ? (
-        <input
-          type="search"
-          placeholder={placeholder}
-          value={value}
-          onChange={onChange}
-        />
-      ) : (
-        <input type="search" placeholder={placeholder} defaultValue={value} />
-      )}
-    </label>
-  )
-}
-
 export function VirtualMedicHeader({
   active = 'doctors',
-  actionLabel = 'Войти',
-  actionHref = routes.login,
-  searchPlaceholder = 'Поиск врача или услуги',
-  searchValue = '',
-  onSearchChange = null,
 }) {
+  const auth = useAuth()
+  const { navigate } = useRouter()
   const navItems = [
-    { key: 'doctors', label: 'Врачи', href: routes.doctors },
-    { key: 'questions', label: 'Вопросы', href: routes.questions },
+    { key: 'home', label: '\u0413\u043b\u0430\u0432\u043d\u0430\u044f', href: routes.landing },
+    { key: 'doctors', label: '\u0412\u0440\u0430\u0447\u0438', href: routes.doctors },
+    { key: 'questions', label: '\u0412\u043e\u043f\u0440\u043e\u0441\u044b', href: routes.questions },
+    { key: 'specialties', label: '\u0421\u043f\u0435\u0446\u0438\u0430\u043b\u044c\u043d\u043e\u0441\u0442\u0438', href: '/#specialties' },
+    { key: 'about', label: '\u041e \u043f\u043b\u0430\u0442\u0444\u043e\u0440\u043c\u0435', href: '/#about' },
+    { key: 'qa', label: 'Q&A', href: routes.questions },
   ]
+  const displayName = getDisplayName(auth.user)
+
+  const handleLogout = async () => {
+    await auth.logout()
+    navigate(routes.login, { replace: true })
+  }
 
   return (
     <header className="vm-header">
@@ -61,19 +53,29 @@ export function VirtualMedicHeader({
           ))}
         </nav>
 
-        <SearchField
-          placeholder={searchPlaceholder}
-          value={searchValue}
-          onChange={onSearchChange}
-        />
-
         <div className="vm-header__actions">
-          <AppLink href={actionHref} className="vm-button vm-button--dark">
-            {actionLabel}
-          </AppLink>
-          <span className="vm-header__avatar" aria-hidden="true">
-            <span className="material-symbols-outlined">person</span>
-          </span>
+          {auth.isAuthenticated ? (
+            <details className="vm-header__account-menu">
+              <summary className="vm-header__profile">
+                <span className="vm-header__profile-text" title={displayName}>{displayName}</span>
+                <span className="vm-header__avatar" aria-hidden="true">
+                  <ProfileImage alt="" src={auth.user?.avatar_url} />
+                </span>
+                <span className="material-symbols-outlined vm-header__chevron" aria-hidden="true">expand_more</span>
+              </summary>
+              <div className="vm-header__menu" role="menu">
+                <AppLink href={routes.account} role="menuitem">{'\u041f\u0440\u043e\u0444\u0438\u043b\u044c'}</AppLink>
+                {auth.hasRole('admin', 'superuser') ? (
+                  <AppLink href={routes.admin} role="menuitem">{'\u0410\u0434\u043c\u0438\u043d \u043f\u0430\u043d\u0435\u043b\u044c'}</AppLink>
+                ) : null}
+                <button type="button" onClick={handleLogout} role="menuitem">{'\u0412\u044b\u0439\u0442\u0438'}</button>
+              </div>
+            </details>
+          ) : (
+            <AppLink href={routes.login} className="vm-button vm-button--dark">
+              {'\u0412\u043e\u0439\u0442\u0438'}
+            </AppLink>
+          )}
         </div>
       </div>
     </header>
@@ -82,35 +84,36 @@ export function VirtualMedicHeader({
 
 export function VirtualMedicFooter() {
   return (
-    <footer className="vm-footer">
+    <footer className="vm-footer" id="about">
       <div className="vm-shell vm-footer__inner">
         <div className="vm-footer__brand">
           <VirtualMedicLogo />
-          <p>
-            Профессиональные медицинские консультации онлайн. Помогаем быстро получить второе
-            мнение и выбрать врача.
-          </p>
+          <p>{'\u041e\u043d\u043b\u0430\u0439\u043d-\u043a\u043e\u043d\u0441\u0443\u043b\u044c\u0442\u0430\u0446\u0438\u0438 \u0441 \u0432\u0440\u0430\u0447\u0430\u043c\u0438, \u043e\u0442\u043a\u0440\u044b\u0442\u0430\u044f \u043b\u0435\u043d\u0442\u0430 \u0432\u043e\u043f\u0440\u043e\u0441\u043e\u0432 \u0438 \u043f\u0440\u043e\u0444\u0438\u043b\u0438 \u0441\u043f\u0435\u0446\u0438\u0430\u043b\u0438\u0441\u0442\u043e\u0432 \u0434\u043b\u044f \u0431\u044b\u0441\u0442\u0440\u043e\u0433\u043e \u0432\u044b\u0431\u043e\u0440\u0430 \u0432\u0440\u0430\u0447\u0430.'}</p>
         </div>
 
         <div className="vm-footer__column">
-          <h3>Пациентам</h3>
-          <AppLink href={routes.doctors}>Каталог врачей</AppLink>
-          <AppLink href={routes.questions}>Открытые вопросы</AppLink>
-          <AppLink href={routes.login}>Вход</AppLink>
+          <h3>{'\u041f\u0430\u0446\u0438\u0435\u043d\u0442\u0430\u043c'}</h3>
+          <AppLink href={routes.doctors}>{'\u041a\u0430\u0442\u0430\u043b\u043e\u0433 \u0432\u0440\u0430\u0447\u0435\u0439'}</AppLink>
+          <AppLink href={routes.questions}>{'\u041e\u0442\u043a\u0440\u044b\u0442\u044b\u0435 \u0432\u043e\u043f\u0440\u043e\u0441\u044b'}</AppLink>
+          <AppLink href={routes.account}>{'\u041b\u0438\u0447\u043d\u044b\u0439 \u043a\u0430\u0431\u0438\u043d\u0435\u0442'}</AppLink>
         </div>
 
         <div className="vm-footer__column">
-          <h3>Платформа</h3>
-          <AppLink href={routes.landing}>Главная</AppLink>
-          <AppLink href={routes.register}>Регистрация</AppLink>
-          <AppLink href={routes.admin}>Админ панель</AppLink>
+          <h3>{'\u041f\u043b\u0430\u0442\u0444\u043e\u0440\u043c\u0430'}</h3>
+          <AppLink href={routes.landing}>{'\u0413\u043b\u0430\u0432\u043d\u0430\u044f'}</AppLink>
+          <a href="/#specialties">{'\u0421\u043f\u0435\u0446\u0438\u0430\u043b\u044c\u043d\u043e\u0441\u0442\u0438'}</a>
+          <AppLink href={routes.register}>{'\u0420\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044f'}</AppLink>
         </div>
 
         <div className="vm-footer__column">
-          <h3>Поддержка</h3>
+          <h3>{'\u041f\u043e\u0434\u0434\u0435\u0440\u0436\u043a\u0430'}</h3>
           <a href="tel:88005553535">8 (800) 555-35-35</a>
           <a href="mailto:help@virtualmedic.ru">help@virtualmedic.ru</a>
-          <span>Ежедневно 08:00-22:00</span>
+          <span>{'\u0415\u0436\u0435\u0434\u043d\u0435\u0432\u043d\u043e 08:00-22:00'}</span>
+        </div>
+
+        <div className="vm-footer__bottom">
+          <span>{'\u00a9 2026 VirtualMedic. \u0412\u0441\u0435 \u0440\u0430\u0437\u0434\u0435\u043b\u044b \u0441\u0430\u0439\u0442\u0430 \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u044e\u0442 \u0435\u0434\u0438\u043d\u044b\u0439 \u0444\u0443\u0442\u0435\u0440.'}</span>
         </div>
       </div>
     </footer>
@@ -119,23 +122,11 @@ export function VirtualMedicFooter() {
 
 export function VirtualMedicPage({
   activeNav,
-  actionLabel,
-  actionHref,
   children,
-  searchPlaceholder,
-  searchValue,
-  onSearchChange,
 }) {
   return (
     <div className="vm-page">
-      <VirtualMedicHeader
-        active={activeNav}
-        actionLabel={actionLabel}
-        actionHref={actionHref}
-        searchPlaceholder={searchPlaceholder}
-        searchValue={searchValue}
-        onSearchChange={onSearchChange}
-      />
+      <VirtualMedicHeader active={activeNav} />
       <main className="vm-main">{children}</main>
       <VirtualMedicFooter />
     </div>

@@ -16,3 +16,4 @@ uploads/
 *.db
 *.db-journal
 local-certs/
+.DS_Store

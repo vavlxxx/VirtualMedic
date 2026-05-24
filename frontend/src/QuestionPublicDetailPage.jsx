@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ApiError, apiClient } from './api/client'
+import { useAuth } from './auth/AuthContext'
 import { AppLink, useRouter } from './router'
-import { routes, withReturnTo } from './routes'
-import { formatDateTime, getDisplayName, getInitials, parsePositiveInteger } from './publicPageUtils'
+import { routes } from './routes'
+import { buildDoctorProfileHref, formatDateTime, getDisplayName, parsePositiveInteger } from './publicPageUtils'
 import { VirtualMedicPage } from './VirtualMedicLayout'
+import { ProfileImage } from './ProfileImage'
 import {
   formatRelativeQuestionTime,
   getDoctorVisualProfile,
@@ -12,10 +14,10 @@ import {
 } from './virtualmedicReference'
 
 function QuestionPublicDetailPage() {
+  const auth = useAuth()
   const { location } = useRouter()
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search])
   const questionId = parsePositiveInteger(searchParams.get('question_id'))
-  const currentPageHref = `${location.pathname}${location.search}${location.hash || ''}`
 
   const [question, setQuestion] = useState(null)
   const [isLoading, setIsLoading] = useState(Boolean(questionId))
@@ -64,7 +66,7 @@ function QuestionPublicDetailPage() {
   const patientMeta = question ? getQuestionPatientMeta(question) : null
 
   return (
-    <VirtualMedicPage activeNav="questions" actionLabel="Войти" actionHref={withReturnTo(routes.login, currentPageHref)}>
+    <VirtualMedicPage activeNav="questions">
       <section className="vm-page-section">
         <div className="vm-shell">
           <div className="vm-breadcrumbs">
@@ -117,14 +119,17 @@ function QuestionPublicDetailPage() {
                   <span>{category}</span>
                 </div>
 
-                <p>{question.text}</p>
+
 
                 <div className="vm-card vm-detail-card">
-                  <h2>Прикрепленные материалы</h2>
+                  {/* <h2>Контекст обращения</h2>
                   <p>
-                    В текущем MVP реальные attachments к вопросам ещё не подключены. Блок оставлен
-                    в структуре страницы, чтобы она совпадала по иерархии с целевым макетом.
-                  </p>
+                    Если у пациента есть результаты обследований или назначения, врач может учесть
+                    их при очной консультации. На странице вопроса отображается основное описание
+                    ситуации и ответы специалистов.
+                  </p> */}
+
+                  <p>{question.text}</p>
                 </div>
               </article>
 
@@ -146,7 +151,11 @@ function QuestionPublicDetailPage() {
                             style={{ background: visualProfile.theme.background }}
                             aria-hidden="true"
                           >
-                            {getInitials(comment.author)}
+                            <ProfileImage
+                              className="vm-doctor-avatar-img"
+                              alt={getDisplayName(comment.author)}
+                              src={comment.author?.avatar_url}
+                            />
                           </div>
 
                           <div>
@@ -174,8 +183,11 @@ function QuestionPublicDetailPage() {
 
                         <div className="vm-response-card__footer">
                           <span className="vm-muted">Ответ опубликован {formatDateTime(comment.created_at)}</span>
-                          <AppLink className="vm-button vm-button--dark" href={withReturnTo(routes.login, currentPageHref)}>
-                            Записаться на консультацию
+                          <AppLink
+                            className="vm-button vm-button--dark"
+                            href={`${buildDoctorProfileHref(comment.author.id)}&tab=consultations`}
+                          >
+                            {auth.isAuthenticated ? 'Открыть консультацию' : 'Профиль врача'}
                           </AppLink>
                         </div>
                       </article>

@@ -272,6 +272,24 @@ export const apiClient = {
     })
   },
 
+  uploadMyAvatar(file) {
+    const formData = new FormData()
+    formData.set('avatar', file)
+
+    return request('/auth/me/avatar', {
+      method: 'POST',
+      body: formData,
+      auth: true,
+    })
+  },
+
+  deleteMyAvatar() {
+    return request('/auth/me/avatar', {
+      method: 'DELETE',
+      auth: true,
+    })
+  },
+
   changePassword(payload) {
     return request('/auth/change-password', {
       method: 'POST',

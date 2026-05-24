@@ -1,6 +1,6 @@
 from pathlib import Path
+from typing import Any, Literal
 from urllib.parse import urlparse
-from typing import Literal
 
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -10,23 +10,35 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class DbSettings(BaseModel):
-    host: str = "localhost"
-    port: int = 5432
-    user: str = "postgres"
-    password: SecretStr = SecretStr("postgres")
-    name: str = "virtualmedic"
+    host: str
+    port: int
+    user: str
+    password: SecretStr
+    name: str
     name_test: str = "virtualmedic_test"
     echo: bool = False
+    alembic_host: str | None = None
+    alembic_port: int | None = None
 
-    @property
-    def async_url(self) -> URL:
+    def _build_async_url(self, *, host: str, port: int) -> URL:
         return URL.create(
             drivername="postgresql+asyncpg",
             username=self.user,
             password=self.password.get_secret_value(),
-            host=self.host,
-            port=self.port,
+            host=host,
+            port=port,
             database=self.name,
+        )
+
+    @property
+    def async_url(self) -> URL:
+        return self._build_async_url(host=self.host, port=self.port)
+
+    @property
+    def alembic_async_url(self) -> URL:
+        return self._build_async_url(
+            host=self.alembic_host or self.host,
+            port=self.alembic_port or self.port,
         )
 
 
@@ -50,7 +62,7 @@ class AppSettings(BaseModel):
 
 
 class JwtSettings(BaseModel):
-    secret_key: SecretStr = SecretStr("change-me-please-in-prod-very-long-secret")
+    secret_key: SecretStr
     algorithm: str = "HS256"
     access_ttl_minutes: int = 15
     refresh_ttl_days: int = 30
@@ -85,7 +97,9 @@ class CorsSettings(BaseModel):
 
 class UploadSettings(BaseModel):
     directory: Path = BASE_DIR / "uploads" / "doctor_documents"
+    avatar_directory: Path = BASE_DIR / "uploads" / "avatars"
     max_file_size_mb: int = 8
+    avatar_max_file_size_mb: int = 2
     max_files_per_request: int = 10
     allowed_extensions: set[str] = {"pdf", "png", "jpg", "jpeg", "webp"}
     allowed_mime_types: set[str] = {
@@ -94,8 +108,16 @@ class UploadSettings(BaseModel):
         "image/jpeg",
         "image/webp",
     }
+    avatar_allowed_extensions: set[str] = {"png", "jpg", "jpeg", "webp"}
+    avatar_allowed_mime_types: set[str] = {"image/png", "image/jpeg", "image/webp"}
 
-    @field_validator("allowed_extensions", "allowed_mime_types", mode="before")
+    @field_validator(
+        "allowed_extensions",
+        "allowed_mime_types",
+        "avatar_allowed_extensions",
+        "avatar_allowed_mime_types",
+        mode="before",
+    )
     @classmethod
     def parse_collection(cls, value: set[str] | list[str] | str) -> set[str]:
         if isinstance(value, str):
@@ -128,9 +150,9 @@ class BootstrapSettings(BaseModel):
 
 
 class Settings(BaseSettings):
-    db: DbSettings = DbSettings()
+    db: DbSettings
     app: AppSettings = AppSettings()
-    auth: JwtSettings = JwtSettings()
+    auth: JwtSettings
     cors: CorsSettings = CorsSettings()
     upload: UploadSettings = UploadSettings()
     gunicorn: GunicornSettings = GunicornSettings()
@@ -171,4 +193,8 @@ class Settings(BaseSettings):
         return self
 
 
-settings = Settings()
+def load_settings(**overrides: Any) -> Settings:
+    return Settings(**overrides)
+
+
+settings = load_settings()

@@ -19,7 +19,7 @@ from src.models.base import Base
 # access to the values within the .ini file in use.
 config = context.config
 config.set_main_option(
-    "sqlalchemy.url", f"{settings.db.async_url.render_as_string(hide_password=False)}?async_fallback=True"
+    "sqlalchemy.url", f"{settings.db.alembic_async_url.render_as_string(hide_password=False)}?async_fallback=True"
 )
 
 # Interpret the config file for Python logging.

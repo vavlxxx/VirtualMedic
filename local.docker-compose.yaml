@@ -4,8 +4,8 @@ services:
     image: postgres:17-alpine
     env_file:
       - ./backend/.env.postgres
-    expose:
-      - "5432"
+    ports:
+      - "6432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -22,12 +22,10 @@ services:
     build:
       context: ./backend
     env_file:
-      - ./backend/.env
+      - ./backend/.env.docker
     depends_on:
       postgres:
         condition: service_healthy
-    expose:
-      - "8000"
     volumes:
       - ./backend/uploads:/app/uploads
     restart: unless-stopped
@@ -44,15 +42,16 @@ services:
     build:
       context: ./frontend
     depends_on:
-      - backend
-    expose:
-      - "80"
+      backend:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
+    expose:
+      - "80"
     networks:
       - virtualmedic_network
 

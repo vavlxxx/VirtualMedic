@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ApiError, apiClient } from './api/client'
+import { useAuth } from './auth/AuthContext'
 import { AppLink } from './router'
-import { routes } from './routes'
 import {
   buildQuestionHref,
   downloadBlobFile,
@@ -47,9 +47,9 @@ function parseBooleanFilter(value) {
 function getRoleLabel(role) {
   switch (role) {
     case 'superuser':
-      return 'superuser'
+      return 'Суперпользователь'
     case 'admin':
-      return 'admin'
+      return 'Администратор'
     case 'doctor':
       return 'врач'
     case 'patient':
@@ -70,6 +70,10 @@ function getPaginationLabel(offset, limit, total) {
 }
 
 function PaginationControls({ offset, limit, total, onPrev, onNext }) {
+  if (!total) {
+    return null
+  }
+
   const canGoPrev = offset > 0
   const canGoNext = offset + limit < total
 
@@ -102,6 +106,7 @@ function EmptyState({ title, description }) {
 }
 
 function AdminDoctorModerationPage() {
+  const auth = useAuth()
   const [activeTab, setActiveTab] = useState('overview')
   const [feedback, setFeedback] = useState({ type: '', text: '' })
   const [maintenanceState, setMaintenanceState] = useState(null)
@@ -321,52 +326,6 @@ function AdminDoctorModerationPage() {
     }
   }, [activeTab, loadPendingDoctors])
 
-  const statsCards = useMemo(
-    () =>
-      dashboard
-        ? [
-            { label: 'Всего пользователей', value: dashboard.stats.total_users },
-            { label: 'Заблокировано', value: dashboard.stats.total_inactive_users },
-            { label: 'Пациенты', value: dashboard.stats.total_patients },
-            { label: 'Врачи', value: dashboard.stats.total_doctors },
-            { label: 'Верифицировано', value: dashboard.stats.total_verified_doctors },
-            { label: 'Ожидают проверки', value: dashboard.stats.total_pending_doctors },
-            { label: 'Вопросы', value: dashboard.stats.total_questions },
-            { label: 'Ответы', value: dashboard.stats.total_answers },
-          ]
-        : [],
-    [dashboard],
-  )
-
-  const activeTabSearchValue =
-    activeTab === 'users'
-      ? usersQuery.search
-      : activeTab === 'specializations'
-        ? ''
-      : activeTab === 'questions'
-        ? questionsQuery.search
-        : activeTab === 'answers'
-          ? answersQuery.search
-          : activeTab === 'doctors'
-            ? pendingQuery.search
-            : ''
-
-  const handleHeaderSearchChange = (event) => {
-    const value = event.target.value
-
-    if (activeTab === 'users') {
-      setUsersQuery((current) => ({ ...current, search: value, offset: 0 }))
-    } else if (activeTab === 'specializations') {
-      return
-    } else if (activeTab === 'questions') {
-      setQuestionsQuery((current) => ({ ...current, search: value, offset: 0 }))
-    } else if (activeTab === 'answers') {
-      setAnswersQuery((current) => ({ ...current, search: value, offset: 0 }))
-    } else if (activeTab === 'doctors') {
-      setPendingQuery((current) => ({ ...current, search: value, offset: 0 }))
-    }
-  }
-
   const refreshVisibleData = async () => {
     await Promise.all([loadDashboard(), loadMaintenanceState()])
 
@@ -475,6 +434,14 @@ function AdminDoctorModerationPage() {
   }
 
   const handleToggleUserStatus = async (user) => {
+    if (user.id === auth.user?.id) {
+      setFeedback({
+        type: 'error',
+        text: 'Нельзя заблокировать собственный аккаунт.',
+      })
+      return
+    }
+
     const nextState = !user.is_active
     const confirmed = window.confirm(
       nextState
@@ -608,6 +575,14 @@ function AdminDoctorModerationPage() {
   }
 
   const handleDeleteUser = async (user) => {
+    if (user.id === auth.user?.id) {
+      setFeedback({
+        type: 'error',
+        text: 'Нельзя удалить собственный аккаунт.',
+      })
+      return
+    }
+
     const confirmed = window.confirm(
       `Удалить пользователя ${getDisplayName(user)}? Будут удалены связанные вопросы, ответы, документы и refresh-сессии.`,
     )
@@ -674,26 +649,7 @@ function AdminDoctorModerationPage() {
   }
 
   return (
-    <VirtualMedicPage
-      activeNav="questions"
-      actionLabel="Профиль"
-      actionHref={routes.account}
-      searchPlaceholder={
-        activeTab === 'overview'
-          ? 'Обзор платформы'
-          : activeTab === 'users'
-            ? 'Поиск по пользователям'
-            : activeTab === 'specializations'
-              ? 'Управление специализациями'
-            : activeTab === 'questions'
-              ? 'Поиск по вопросам'
-              : activeTab === 'answers'
-                ? 'Поиск по ответам'
-                : 'Поиск по заявкам врачей'
-      }
-      searchValue={activeTabSearchValue}
-      onSearchChange={activeTab === 'overview' || activeTab === 'specializations' ? null : handleHeaderSearchChange}
-    >
+    <VirtualMedicPage activeNav="admin">
       <section className="vm-page-section">
         <div className="vm-shell">
           <div className="vm-breadcrumbs">
@@ -703,10 +659,10 @@ function AdminDoctorModerationPage() {
 
           <div className="vm-page-hero">
             <div>
-              <h1>Операторская админ панель</h1>
+              <h1>Админ панель</h1>
               <p>
-                Центр управления платформой: пользователи, вопросы, ответы врачей, заявки на
-                верификацию и оперативные действия без переходов по разным экранам.
+                Рабочее место для контроля пользователей, вопросов, ответов врачей,
+                специализаций и заявок на подтверждение профиля.
               </p>
             </div>
             <button className="vm-button" type="button" onClick={refreshVisibleData}>
@@ -725,11 +681,22 @@ function AdminDoctorModerationPage() {
               <div>
                 <h2>Заглушка сайта</h2>
                 <p>
-                  При включении пользователи и врачи видят maintenance-экран, а API блокирует любые
-                  действия и публичные разделы. Администратор продолжает работать с системой.
+                  При включении пользователи и врачи увидят сервисное уведомление. Администраторы
+                  сохраняют доступ к панели и могут вернуть сайт в обычный режим.
                 </p>
               </div>
-              <button
+            </div>
+
+            <div className="vm-inline-meta">
+              <span className="vm-file-chip">
+                Статус: {maintenanceState?.enabled ? 'включена' : 'выключена'}
+              </span>
+              <span className="vm-muted">
+                Администраторы сохраняют доступ после входа.
+              </span>
+            </div>
+
+            <button
                 className={`vm-button ${maintenanceState?.enabled ? 'vm-button--danger' : ''}`}
                 type="button"
                 onClick={handleMaintenanceToggle}
@@ -741,16 +708,6 @@ function AdminDoctorModerationPage() {
                     ? 'Выключить заглушку'
                     : 'Включить заглушку'}
               </button>
-            </div>
-
-            <div className="vm-inline-meta">
-              <span className="vm-file-chip">
-                Статус: {maintenanceState?.enabled ? 'включена' : 'выключена'}
-              </span>
-              <span className="vm-muted">
-                Админ и superuser обходят ограничение автоматически после входа.
-              </span>
-            </div>
 
             {maintenanceError ? <p className="vm-form-error">{maintenanceError}</p> : null}
           </section>
@@ -786,14 +743,58 @@ function AdminDoctorModerationPage() {
 
               {dashboard ? (
                 <div className="vm-grid">
-                  <div className="vm-admin-stats-grid">
-                    {statsCards.map((item) => (
-                      <article className="vm-card vm-admin-stat-card" key={item.label}>
-                        <span className="vm-overline">{item.label}</span>
-                        <strong>{item.value}</strong>
-                      </article>
-                    ))}
-                  </div>
+                  <section className="vm-card vm-admin-command-center">
+                    <div className="vm-admin-command-center__lead">
+                      <span className="vm-overline">Состояние платформы</span>
+                      <strong>{dashboard.stats.total_users}</strong>
+                      <p>
+                        пользователей в системе, из них {dashboard.stats.total_doctors} врачей и{' '}
+                        {dashboard.stats.total_patients} пациентов.
+                      </p>
+                    </div>
+
+                    <div className="vm-admin-health-grid">
+                      <div className="vm-admin-health-item">
+                        <span>Верификация врачей</span>
+                        <strong>
+                          {dashboard.stats.total_verified_doctors}/{dashboard.stats.total_doctors}
+                        </strong>
+                        <div className="vm-admin-progress">
+                          <span
+                            style={{
+                              width: `${
+                                dashboard.stats.total_doctors
+                                  ? Math.round(
+                                    (dashboard.stats.total_verified_doctors / dashboard.stats.total_doctors) * 100,
+                                  )
+                                  : 0
+                              }%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="vm-admin-health-item">
+                        <span>Контент</span>
+                        <strong>
+                          {dashboard.stats.total_questions} / {dashboard.stats.total_answers}
+                        </strong>
+                        <p>вопросов и ответов врачей</p>
+                      </div>
+
+                      <div className="vm-admin-health-item">
+                        <span>Очередь модерации</span>
+                        <strong>{dashboard.stats.total_pending_doctors}</strong>
+                        <p>заявок ожидают проверки</p>
+                      </div>
+
+                      <div className="vm-admin-health-item">
+                        <span>Ограничения</span>
+                        <strong>{dashboard.stats.total_inactive_users}</strong>
+                        <p>аккаунтов заблокировано</p>
+                      </div>
+                    </div>
+                  </section>
 
                   <div className="vm-admin-overview-grid">
                     <section className="vm-card vm-detail-card">
@@ -969,7 +970,7 @@ function AdminDoctorModerationPage() {
                         <span className="vm-muted">@{user.username}</span>
                         <span className="vm-file-chip">{getRoleLabel(user.role)}</span>
                         {!user.is_active ? <span className="vm-file-chip">заблокирован</span> : null}
-                        {user.is_verified_doctor ? <span className="vm-file-chip">verified doctor</span> : null}
+                        {user.is_verified_doctor ? <span className="vm-file-chip">врач подтверждён</span> : null}
                       </div>
                       <div className="vm-inline-meta">
                         <span className="vm-muted">Вопросов: {user.questions_count}</span>
@@ -979,10 +980,20 @@ function AdminDoctorModerationPage() {
                       </div>
                     </div>
                     <div className="vm-admin-row__actions">
-                      <button className="vm-button vm-button--soft" type="button" onClick={() => handleToggleUserStatus(user)}>
+                      <button
+                        className="vm-button vm-button--soft"
+                        type="button"
+                        onClick={() => handleToggleUserStatus(user)}
+                        disabled={user.id === auth.user?.id}
+                      >
                         {user.is_active ? 'Заблокировать' : 'Разблокировать'}
                       </button>
-                      <button className="vm-button vm-button--danger" type="button" onClick={() => handleDeleteUser(user)}>
+                      <button
+                        className="vm-button vm-button--danger"
+                        type="button"
+                        onClick={() => handleDeleteUser(user)}
+                        disabled={user.id === auth.user?.id}
+                      >
                         Удалить
                       </button>
                     </div>
@@ -1013,6 +1024,7 @@ function AdminDoctorModerationPage() {
                 <input
                   className="vm-input"
                   type="text"
+                  id="specializationDraft"
                   placeholder="Например: Кардиолог"
                   value={specializationDraft}
                   onChange={(event) => {

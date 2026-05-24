@@ -123,7 +123,7 @@
 
 .auth-field__label {
   color: #0f172a;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
 }
 
@@ -509,5 +509,255 @@
   .selected-files-list__item {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+/* Flat account/auth treatment to match the production UI direction. */
+.auth-page {
+  background: #f4f6f8;
+}
+
+.auth-page__ambient {
+  display: none;
+}
+
+.auth-card,
+.auth-panel,
+.account-panel,
+.account-section,
+.document-item,
+.selected-files-list__item,
+.route-state-card,
+.auth-message,
+.auth-field__input,
+.auth-submit-button,
+.auth-secondary-link,
+.status-badge {
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.auth-card,
+.account-panel,
+.account-section {
+  border-color: #d8dee8;
+  background: #ffffff;
+}
+
+.auth-submit-button {
+  background: #245ebd;
+}
+
+.auth-submit-button--ghost,
+.auth-secondary-link {
+  background: #ffffff;
+}
+
+.auth-card__title,
+.account-panel__value,
+.account-section__title,
+.account-section__subtitle {
+  letter-spacing: 0;
+}
+
+.account-profile-layout {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 28px;
+  align-items: stretch;
+}
+
+.account-profile-card,
+.account-profile-details {
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.account-profile-card {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 14px;
+  padding: 28px 24px;
+  text-align: center;
+}
+
+.account-avatar {
+  display: grid;
+  place-items: center;
+  width: 150px;
+  height: 150px;
+  overflow: hidden;
+  border: 6px solid #eef2f7;
+  border-radius: 50%;
+  background: #e7edf6;
+  color: #17448f;
+  font-size: 42px;
+  font-weight: 800;
+}
+
+.account-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.account-profile-card h2 {
+  margin: 10px 0 0;
+  color: #172033;
+  font-size: 28px;
+  line-height: 1.18;
+}
+
+.account-profile-card p {
+  margin: 0;
+  color: #52617a;
+}
+
+.account-role-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: #eef2f7;
+  color: #24324a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.account-avatar-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.account-profile-details {
+  display: grid;
+  gap: 20px;
+  padding: 26px;
+  border-left: 4px solid #245ebd;
+}
+
+.account-detail-list {
+  display: grid;
+  margin: 0;
+  gap: 10px;
+}
+
+.account-detail-list div {
+  display: grid;
+  grid-template-columns: minmax(160px, 240px) minmax(0, 1fr);
+  min-height: 46px;
+  overflow: hidden;
+  border-radius: 6px;
+}
+
+.account-detail-list dt,
+.account-detail-list dd {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 11px 14px;
+}
+
+.account-detail-list dt {
+  background: #eef2f7;
+  color: #52617a;
+  font-weight: 700;
+}
+
+.account-detail-list dd {
+  background: #fbfcfe;
+  color: #172033;
+}
+
+.account-page-card {
+  padding-block: 8px 44px;
+}
+
+.account-unified-form {
+  gap: 24px;
+  border: none;
+  background: #ffffff;
+}
+
+.account-edit-list {
+  display: grid;
+  gap: 14px;
+}
+
+.account-settings-group {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  min-width: 0;
+  padding: 22px 0;
+  border-top: 1px solid #e6ebf3;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.account-settings-group:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.account-list-fields {
+  display: grid;
+  border: 1px solid #e6ebf3;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.account-list-field {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-top: 1px solid #e6ebf3;
+  background: #ffffff;
+}
+
+.account-list-field:first-child {
+  border-top: 0;
+}
+
+.account-list-field .auth-field__label {
+  margin: 0;
+}
+
+.account-list-field .auth-field__input {
+  min-height: 44px;
+}
+
+.account-save-row {
+  justify-content: flex-end;
+  padding-top: 6px;
+}
+
+.account-save-row .auth-submit-button {
+  width: min(100%, 280px);
+}
+
+@media (max-width: 860px) {
+  .account-profile-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .account-edit-list {
+    grid-template-columns: 1fr;
+  }
+
+  .account-list-field {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .account-detail-list div {
+    grid-template-columns: 1fr;
   }
 }

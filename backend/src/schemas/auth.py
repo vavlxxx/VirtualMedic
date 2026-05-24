@@ -116,6 +116,7 @@ class UserProfileDTO(BaseDTO):
     role: UserRole
     first_name: str | None
     last_name: str | None
+    avatar_url: str | None = None
     is_active: bool
     is_verified_doctor: bool
     specializations: list[SpecializationInlineDTO] = Field(default_factory=list)

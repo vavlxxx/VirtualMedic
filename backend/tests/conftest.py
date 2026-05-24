@@ -8,6 +8,7 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from src.api.v1.dependencies.db import get_db
+from src.config import settings
 from src.main import app
 from src.models.base import Base
 
@@ -24,11 +25,22 @@ async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest.fixture(scope="session", autouse=True)
-async def setup_test_database() -> AsyncGenerator[None, None]:
+async def setup_test_database(tmp_path_factory: pytest.TempPathFactory) -> AsyncGenerator[None, None]:
     app.dependency_overrides[get_db] = override_get_db
     original_sessionmaker = app.state.db_sessionmaker
     app.state.db_sessionmaker = TestingSessionLocal
     original_lifespan = app.router.lifespan_context
+    original_upload_directory = settings.upload.directory
+    original_avatar_directory = settings.upload.avatar_directory
+    original_cookie_secure = settings.auth.cookie_secure
+    original_cookie_domain = settings.auth.cookie_domain
+    original_refresh_cookie_path = settings.auth.refresh_cookie_path
+
+    settings.upload.directory = tmp_path_factory.mktemp("doctor_documents")
+    settings.upload.avatar_directory = tmp_path_factory.mktemp("avatars")
+    settings.auth.cookie_secure = False
+    settings.auth.cookie_domain = None
+    settings.auth.refresh_cookie_path = "/"
 
     @asynccontextmanager
     async def _noop_lifespan(_):
@@ -45,6 +57,11 @@ async def setup_test_database() -> AsyncGenerator[None, None]:
     app.dependency_overrides.clear()
     app.state.db_sessionmaker = original_sessionmaker
     app.router.lifespan_context = original_lifespan
+    settings.upload.directory = original_upload_directory
+    settings.upload.avatar_directory = original_avatar_directory
+    settings.auth.cookie_secure = original_cookie_secure
+    settings.auth.cookie_domain = original_cookie_domain
+    settings.auth.refresh_cookie_path = original_refresh_cookie_path
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)

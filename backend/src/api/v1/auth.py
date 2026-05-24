@@ -1,4 +1,5 @@
 from fastapi import APIRouter, File, Form, Request, Response, UploadFile, status
+from fastapi.responses import FileResponse
 from pydantic import ValidationError
 
 from src.api.v1.dependencies.auth import CurrentUserDep, RefreshContextDep
@@ -16,6 +17,7 @@ from src.schemas.auth import (
 )
 from src.schemas.doctor import DoctorQualificationDocumentDTO
 from src.services.auth import AuthService, TokenService
+from src.utils.files import resolve_avatar_path
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -93,6 +95,25 @@ async def get_my_profile(db: DBDep, current_user: CurrentUserDep) -> UserProfile
 @router.patch("/me", response_model=UserProfileDTO)
 async def update_my_profile(payload: ProfileUpdateRequest, db: DBDep, current_user: CurrentUserDep) -> UserProfileDTO:
     return await AuthService(db).update_my_profile(payload=payload, current_user=current_user)
+
+
+@router.post("/me/avatar", response_model=UserProfileDTO)
+async def upload_my_avatar(
+    db: DBDep,
+    current_user: CurrentUserDep,
+    avatar: UploadFile = File(...),
+) -> UserProfileDTO:
+    return await AuthService(db).upload_my_avatar(current_user=current_user, avatar=avatar)
+
+
+@router.delete("/me/avatar", response_model=UserProfileDTO)
+async def delete_my_avatar(db: DBDep, current_user: CurrentUserDep) -> UserProfileDTO:
+    return await AuthService(db).delete_my_avatar(current_user=current_user)
+
+
+@router.get("/avatar/{file_name}", response_class=FileResponse)
+async def get_avatar(file_name: str) -> FileResponse:
+    return FileResponse(resolve_avatar_path(file_name))
 
 
 @router.post("/change-password", response_model=MessageResponseDTO)

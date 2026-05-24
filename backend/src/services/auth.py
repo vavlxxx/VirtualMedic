@@ -25,7 +25,7 @@ from src.schemas.auth import (
 )
 from src.schemas.doctor import DoctorQualificationDocumentDTO
 from src.services.base import BaseService
-from src.utils.files import save_doctor_document
+from src.utils.files import build_avatar_url, delete_avatar_file, save_avatar_image, save_doctor_document
 from src.utils.security import (
     create_access_token,
     create_refresh_token,
@@ -233,6 +233,43 @@ class AuthService(BaseService):
         current_user.first_name = payload.first_name if payload.first_name is not None else current_user.first_name
         current_user.last_name = payload.last_name if payload.last_name is not None else current_user.last_name
         await self.db.commit()
+
+        user = await self.db.users.get_by_id(current_user.id, *USER_PROFILE_OPTIONS)
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        return to_user_profile(user)
+
+    async def upload_my_avatar(self, current_user: User, avatar: UploadFile) -> UserProfileDTO:
+        old_avatar_url = current_user.avatar_url
+        file_meta = await save_avatar_image(avatar)
+        new_avatar_url = build_avatar_url(file_meta.stored_file_name)
+
+        current_user.avatar_url = new_avatar_url
+        try:
+            await self.db.commit()
+        except Exception:
+            await self.db.rollback()
+            delete_avatar_file(new_avatar_url)
+            raise
+
+        delete_avatar_file(old_avatar_url)
+
+        user = await self.db.users.get_by_id(current_user.id, *USER_PROFILE_OPTIONS)
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        return to_user_profile(user)
+
+    async def delete_my_avatar(self, current_user: User) -> UserProfileDTO:
+        old_avatar_url = current_user.avatar_url
+        current_user.avatar_url = None
+
+        try:
+            await self.db.commit()
+        except Exception:
+            await self.db.rollback()
+            raise
+
+        delete_avatar_file(old_avatar_url)
 
         user = await self.db.users.get_by_id(current_user.id, *USER_PROFILE_OPTIONS)
         if user is None:

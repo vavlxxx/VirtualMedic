@@ -579,3 +579,47 @@ html {
     font-size: 1.4rem;
   }
 }
+
+/* Landing page visual cleanup: keep the layout, remove the generated-card look. */
+.app-shell [class*="shadow"] {
+  box-shadow: none !important;
+}
+
+.app-shell [class*="rounded-"] {
+  border-radius: 8px !important;
+}
+
+.app-shell .rounded-full,
+.app-shell [class*="rounded-full"],
+.app-shell .vm-live-online-count,
+.app-shell .vm-live-doctor-item__online {
+  border-radius: 999px !important;
+}
+
+.app-shell h1,
+.app-shell h2,
+.app-shell h3,
+.app-shell h4,
+.app-shell h5,
+.app-shell h6 {
+  letter-spacing: 0 !important;
+}
+
+.app-shell .bg-background-light,
+.app-shell.bg-background-light {
+  background-color: #f4f6f8 !important;
+}
+
+.vm-live-panel,
+.vm-live-question-item,
+.vm-live-doctor-item {
+  border-color: rgba(100, 116, 139, 0.28);
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.vm-live-question-item:hover,
+.vm-live-doctor-item:hover {
+  transform: none;
+  box-shadow: none;
+}

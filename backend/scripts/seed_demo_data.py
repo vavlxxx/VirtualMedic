@@ -1,445 +1,319 @@
 from __future__ import annotations
 
+# ruff: noqa: E501
+
 import asyncio
 import hashlib
 import sys
+from base64 import b64encode
+from datetime import timedelta
 from pathlib import Path
 
-from sqlalchemy import delete, func, insert, select
+from sqlalchemy import delete, insert, select
+from sqlalchemy.orm import selectinload
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.append(str(ROOT_DIR))
 
+from src.config import settings  # noqa: E402
 from src.db import sessionmaker  # noqa: E402
 from src.models.auth import RefreshSession, User  # noqa: E402
 from src.models.doctor import DoctorQualificationDocument, Specialization, doctor_specializations  # noqa: E402
 from src.models.enums import UserRole  # noqa: E402
 from src.models.qa import Question, QuestionComment  # noqa: E402
-from src.utils.files import ensure_upload_directory  # noqa: E402
-from src.utils.security import create_refresh_token, generate_jti, hash_password, hash_token  # noqa: E402
+from src.utils.security import generate_jti, hash_password, hash_token, utc_now  # noqa: E402
 
-SPECIALIZATION_NAMES = [
-    "Cardiology",
-    "Neurology",
-    "Endocrinology",
-    "Pediatrics",
-    "Dermatology",
-    "Gastroenterology",
-    "Psychotherapy",
-    "Pulmonology",
-    "Rheumatology",
-    "Otolaryngology",
-    "Ophthalmology",
-    "Nutrition",
+DEMO_PASSWORD = "DemoPass!2026"
+LOCAL_UPLOAD_DIR = ROOT_DIR / "uploads" / "doctor_documents"
+
+DEMO_AVATAR_URLS = {
+    "doctor.kuznetsova": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=640&q=80",
+    "doctor.orlov": "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=640&q=80",
+    "doctor.morozova": "https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=640&q=80",
+    "doctor.sokolov": "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=640&q=80",
+    "doctor.volkova": "https://images.unsplash.com/photo-1582750433449-648ed127bb54?auto=format&fit=crop&w=640&q=80",
+    "doctor.lebedev": "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=640&q=80",
+    "doctor.fedorova": "https://images.unsplash.com/photo-1651008376811-b90baee60c1f?auto=format&fit=crop&w=640&q=80",
+    "doctor.nikitin": "https://images.unsplash.com/photo-1605684954998-685c79d6a018?auto=format&fit=crop&w=640&q=80",
+}
+
+
+SPECIALIZATIONS = [
+    "Терапия",
+    "Педиатрия",
+    "Кардиология",
+    "Неврология",
+    "Дерматология",
+    "Гастроэнтерология",
+    "Эндокринология",
+    "Пульмонология",
 ]
 
-ADMIN_USERS = [
-    {
-        "username": "seed_admin_01",
-        "password": "SeedAdmin!123",
-        "first_name": "Elena",
-        "last_name": "Voronina",
-        "role": UserRole.ADMIN,
-    },
-    {
-        "username": "seed_admin_02",
-        "password": "SeedAdmin!123",
-        "first_name": "Maxim",
-        "last_name": "Sorokin",
-        "role": UserRole.ADMIN,
-    },
+DOCTORS = [
+    ("doctor.kuznetsova", "Анна", "Кузнецова", ["Терапия", "Гастроэнтерология"], True),
+    ("doctor.orlov", "Игорь", "Орлов", ["Кардиология", "Терапия"], True),
+    ("doctor.morozova", "Елена", "Морозова", ["Педиатрия"], True),
+    ("doctor.sokolov", "Дмитрий", "Соколов", ["Неврология"], True),
+    ("doctor.volkova", "Мария", "Волкова", ["Дерматология"], True),
+    ("doctor.lebedev", "Павел", "Лебедев", ["Эндокринология"], True),
+    ("doctor.fedorova", "Ольга", "Федорова", ["Пульмонология"], False),
+    ("doctor.nikitin", "Алексей", "Никитин", ["Гастроэнтерология"], False),
 ]
 
-PATIENT_USERS = [
-    {"username": "seed_patient_01", "password": "SeedPatient!123", "first_name": "Ivan", "last_name": "Petrov"},
-    {"username": "seed_patient_02", "password": "SeedPatient!123", "first_name": "Maria", "last_name": "Sokolova"},
-    {"username": "seed_patient_03", "password": "SeedPatient!123", "first_name": "Alexey", "last_name": "Smirnov"},
-    {"username": "seed_patient_04", "password": "SeedPatient!123", "first_name": "Olga", "last_name": "Kuznetsova"},
-    {"username": "seed_patient_05", "password": "SeedPatient!123", "first_name": "Daria", "last_name": "Fedorova"},
-    {"username": "seed_patient_06", "password": "SeedPatient!123", "first_name": "Pavel", "last_name": "Romanov"},
-    {"username": "seed_patient_07", "password": "SeedPatient!123", "first_name": "Nikita", "last_name": "Belov"},
-    {"username": "seed_patient_08", "password": "SeedPatient!123", "first_name": "Irina", "last_name": "Morozova"},
-    {"username": "seed_patient_09", "password": "SeedPatient!123", "first_name": "Tatyana", "last_name": "Volkova"},
-    {"username": "seed_patient_10", "password": "SeedPatient!123", "first_name": "Denis", "last_name": "Popov"},
-    {"username": "seed_patient_11", "password": "SeedPatient!123", "first_name": "Vera", "last_name": "Orlova"},
-    {"username": "seed_patient_12", "password": "SeedPatient!123", "first_name": "Roman", "last_name": "Gusev"},
+PATIENTS = [
+    ("patient.smirnova", "Ирина", "Смирнова"),
+    ("patient.egorov", "Максим", "Егоров"),
+    ("patient.romanova", "Наталья", "Романова"),
+    ("patient.belov", "Артем", "Белов"),
+    ("patient.karpova", "Светлана", "Карпова"),
+    ("patient.antonov", "Сергей", "Антонов"),
 ]
 
-DOCTOR_USERS = [
-    {
-        "username": "seed_doctor_01",
-        "password": "SeedDoctor!123",
-        "first_name": "Anna",
-        "last_name": "Lebedeva",
-        "specializations": ["Cardiology", "Nutrition"],
-        "is_verified_doctor": True,
-    },
-    {
-        "username": "seed_doctor_02",
-        "password": "SeedDoctor!123",
-        "first_name": "Sergey",
-        "last_name": "Karpov",
-        "specializations": ["Neurology", "Psychotherapy"],
-        "is_verified_doctor": True,
-    },
-    {
-        "username": "seed_doctor_03",
-        "password": "SeedDoctor!123",
-        "first_name": "Polina",
-        "last_name": "Nikitina",
-        "specializations": ["Endocrinology", "Nutrition"],
-        "is_verified_doctor": True,
-    },
-    {
-        "username": "seed_doctor_04",
-        "password": "SeedDoctor!123",
-        "first_name": "Igor",
-        "last_name": "Romanenko",
-        "specializations": ["Pediatrics", "Otolaryngology"],
-        "is_verified_doctor": True,
-    },
-    {
-        "username": "seed_doctor_05",
-        "password": "SeedDoctor!123",
-        "first_name": "Natalia",
-        "last_name": "Abramova",
-        "specializations": ["Dermatology", "Ophthalmology"],
-        "is_verified_doctor": True,
-    },
-    {
-        "username": "seed_doctor_06",
-        "password": "SeedDoctor!123",
-        "first_name": "Artem",
-        "last_name": "Mikhailov",
-        "specializations": ["Gastroenterology", "Nutrition"],
-        "is_verified_doctor": True,
-    },
-    {
-        "username": "seed_doctor_07",
-        "password": "SeedDoctor!123",
-        "first_name": "Ekaterina",
-        "last_name": "Komarova",
-        "specializations": ["Psychotherapy", "Neurology"],
-        "is_verified_doctor": True,
-    },
-    {
-        "username": "seed_doctor_08",
-        "password": "SeedDoctor!123",
-        "first_name": "Mikhail",
-        "last_name": "Tarasov",
-        "specializations": ["Pulmonology", "Cardiology"],
-        "is_verified_doctor": True,
-    },
-    {
-        "username": "seed_doctor_09",
-        "password": "SeedDoctor!123",
-        "first_name": "Yulia",
-        "last_name": "Solovyova",
-        "specializations": ["Rheumatology", "Endocrinology"],
-        "is_verified_doctor": True,
-    },
-    {
-        "username": "seed_doctor_10",
-        "password": "SeedDoctor!123",
-        "first_name": "Kirill",
-        "last_name": "Anisimov",
-        "specializations": ["Otolaryngology", "Pediatrics"],
-        "is_verified_doctor": True,
-    },
-    {
-        "username": "seed_doctor_11",
-        "password": "SeedDoctor!123",
-        "first_name": "Svetlana",
-        "last_name": "Ermakova",
-        "specializations": ["Ophthalmology", "Dermatology"],
-        "is_verified_doctor": False,
-    },
-    {
-        "username": "seed_doctor_12",
-        "password": "SeedDoctor!123",
-        "first_name": "Viktor",
-        "last_name": "Loginov",
-        "specializations": ["Nutrition", "Gastroenterology"],
-        "is_verified_doctor": False,
-    },
-]
-
-QUESTION_TOPICS = [
-    "persistent headache and dizziness for five days",
-    "dry cough that becomes worse at night",
-    "blood sugar readings keep climbing in the morning",
-    "rash on hands after household chemicals",
-    "stomach pain after meals and bloating",
-    "child has fever and sore throat since yesterday",
-    "shortness of breath while climbing stairs",
-    "ankle pain and swelling after a long walk",
-    "red eyes after several hours at the computer",
-    "ringing in ears after a recent cold",
-    "fatigue and low appetite for two weeks",
-    "skin peeling on elbows and knees",
-]
-
-ANSWER_TEMPLATES = [
-    "Please book an in-person appointment, keep a symptom diary, and complete baseline blood tests.",
-    "Increase hydration, avoid self-medication for now, and arrange a focused specialist consultation.",
-    "The symptoms warrant a targeted examination and a review of current medications within the next few days.",
-    "Until you are seen, monitor temperature, pulse, and triggers, then share the notes with the clinician.",
+QUESTIONS = [
+    (
+        "patient.smirnova",
+        "Третий день держится температура 37.5, ломота и сухой кашель. Сатурация 97, одышки нет. Что делать дома и когда обращаться очно?",
+        [("doctor.kuznetsova", "Пейте больше жидкости, контролируйте температуру и сатурацию. Если появится одышка, боль в груди или температура выше 38.5 дольше трех дней, нужен очный осмотр.")],
+    ),
+    (
+        "patient.egorov",
+        "После тренировки появилась давящая боль в груди слева, проходит в покое за 10 минут. Давление 145/90. Это может быть сердце?",
+        [("doctor.orlov", "Такая боль требует очной оценки. Рекомендую ЭКГ и консультацию кардиолога в ближайшее время, а при повторе боли в покое вызвать скорую помощь.")],
+    ),
+    (
+        "patient.romanova",
+        "Ребенку 6 лет, насморк и кашель неделю, сегодня заболело ухо. Температура 37.8. Можно ли ждать до утра?",
+        [("doctor.morozova", "Боль в ухе после ОРВИ часто бывает при отите. Дайте жаропонижающее по весу при боли или температуре и покажите ребенка ЛОР-врачу или педиатру в ближайшие сутки.")],
+    ),
+    (
+        "patient.belov",
+        "Месяц беспокоят головные боли после работы за компьютером, иногда немеет правая кисть. Давление нормальное.",
+        [("doctor.sokolov", "Похоже на сочетание мышечного напряжения и возможной компрессии нерва. Нужен неврологический осмотр, оценка шейного отдела и режима рабочего места.")],
+    ),
+    (
+        "patient.karpova",
+        "На коже рук появились сухие красные пятна, сильно зудят после бытовой химии. Кремы помогают ненадолго.",
+        [("doctor.volkova", "Вероятен контактный дерматит. Используйте перчатки, мягкие очищающие средства и эмоленты. Если зуд выраженный, лучше очно подобрать противовоспалительное лечение.")],
+    ),
+    (
+        "patient.antonov",
+        "Частая изжога после ужина и кислый привкус по утрам. Боли сильной нет, но симптомы почти каждый день.",
+        [("doctor.kuznetsova", "Симптомы похожи на рефлюкс. Попробуйте не есть за 3 часа до сна, уменьшить кофе и жирную пищу. При ежедневных симптомах нужна консультация гастроэнтеролога.")],
+    ),
+    (
+        "patient.smirnova",
+        "ТТГ 6.2, слабость и сонливость, вес немного растет. Нужно ли сразу начинать гормоны?",
+        [("doctor.lebedev", "Решение зависит от свободного Т4, антител, возраста, беременности и симптомов. Стоит повторить анализы и обсудить результат с эндокринологом.")],
+    ),
+    (
+        "patient.egorov",
+        "После антибиотиков вздутие и неустойчивый стул уже две недели. Какие анализы стоит сдать?",
+        [],
+    ),
+    (
+        "patient.romanova",
+        "У ребенка периодически свистящее дыхание после простуды, особенно ночью. Между эпизодами чувствует себя нормально.",
+        [("doctor.fedorova", "Нужна очная оценка педиатра или пульмонолога. Важно исключить бронхообструкцию и аллергию, особенно если эпизоды повторяются после инфекций.")],
+    ),
+    (
+        "patient.belov",
+        "Появилась боль в желудке натощак, после еды становится легче. НПВС не принимаю.",
+        [],
+    ),
 ]
 
 
-def build_pdf_bytes(title: str) -> bytes:
-    return (
-        "%PDF-1.4\n"
-        "1 0 obj\n"
-        "<< /Type /Catalog /Pages 2 0 R >>\n"
-        "endobj\n"
-        "2 0 obj\n"
-        "<< /Type /Pages /Count 1 /Kids [3 0 R] >>\n"
-        "endobj\n"
-        "3 0 obj\n"
-        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>\n"
-        "endobj\n"
-        f"% {title}\n"
-        "trailer\n"
-        "<< /Root 1 0 R >>\n"
-        "%%EOF\n"
-    ).encode("utf-8")
+def avatar_data_url(first_name: str, last_name: str, color: str) -> str:
+    initials = f"{first_name[:1]}{last_name[:1]}".upper()
+    svg = f"""
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+  <rect width="320" height="320" fill="{color}"/>
+  <circle cx="160" cy="128" r="58" fill="#ffffff" opacity="0.9"/>
+  <rect x="72" y="206" width="176" height="84" rx="42" fill="#ffffff" opacity="0.9"/>
+  <text x="160" y="178" text-anchor="middle" font-family="Arial" font-size="64" font-weight="700" fill="{color}">{initials}</text>
+</svg>
+""".strip()
+    return f"data:image/svg+xml;base64,{b64encode(svg.encode('utf-8')).decode('ascii')}"
 
 
-async def upsert_specialization(session, name: str) -> Specialization:
-    specialization = await session.scalar(select(Specialization).where(Specialization.name == name))
-    if specialization is None:
-        specialization = Specialization(name=name)
-        session.add(specialization)
-        await session.flush()
-    return specialization
+def get_seed_upload_directory() -> Path:
+    upload_directory = settings.upload.directory
+    if upload_directory.as_posix().startswith("/app/"):
+        return LOCAL_UPLOAD_DIR
+    return upload_directory
 
 
-async def upsert_user(
-    session,
-    *,
-    username: str,
-    password: str,
-    role: UserRole,
-    first_name: str,
-    last_name: str,
-    is_verified_doctor: bool = False,
-) -> User:
-    user = await session.scalar(select(User).where(User.username == username))
-    if user is None:
-        user = User(
-            username=username,
-            password_hash=hash_password(password),
-            first_name=first_name,
-            last_name=last_name,
-            role=role,
-            is_active=True,
-            is_verified_doctor=is_verified_doctor,
-        )
-        session.add(user)
-        await session.flush()
+def get_demo_avatar_url(username: str, first_name: str, last_name: str) -> str:
+    if username in DEMO_AVATAR_URLS:
+        return DEMO_AVATAR_URLS[username]
+
+    colors = ["#245ebd", "#16875f", "#8a4f16", "#6b5ca5", "#b42318", "#0f766e"]
+    color = colors[abs(hash(username)) % len(colors)]
+    return avatar_data_url(first_name, last_name, color)
+
+
+async def get_or_create_specializations(session) -> dict[str, Specialization]:
+    result = await session.execute(select(Specialization))
+    existing = {item.name: item for item in result.scalars().all()}
+
+    for name in SPECIALIZATIONS:
+        if name not in existing:
+            specialization = Specialization(name=name)
+            session.add(specialization)
+            existing[name] = specialization
+
+    await session.flush()
+    return existing
+
+
+async def get_or_create_user(session, username: str, first_name: str, last_name: str, role: UserRole) -> User:
+    user = await session.scalar(
+        select(User)
+        .where(User.username == username)
+        .options(selectinload(User.specializations), selectinload(User.qualification_documents))
+    )
+    if user is not None:
+        next_avatar_url = get_demo_avatar_url(username, first_name, last_name)
+        if not user.avatar_url or user.avatar_url.startswith("data:image/svg+xml"):
+            user.avatar_url = next_avatar_url
         return user
 
-    user.password_hash = hash_password(password)
-    user.first_name = first_name
-    user.last_name = last_name
-    user.role = role
-    user.is_active = True
-    user.is_verified_doctor = is_verified_doctor
+    user = User(
+        username=username,
+        password_hash=hash_password(DEMO_PASSWORD),
+        first_name=first_name,
+        last_name=last_name,
+        avatar_url=get_demo_avatar_url(username, first_name, last_name),
+        role=role,
+        is_active=True,
+        is_verified_doctor=False,
+    )
+    session.add(user)
     await session.flush()
     return user
 
 
-async def ensure_doctor_documents(session, doctor: User) -> None:
-    upload_dir = ensure_upload_directory()
+async def ensure_doctor_document(session, doctor: User) -> None:
+    existing = await session.scalar(
+        select(DoctorQualificationDocument).where(DoctorQualificationDocument.doctor_id == doctor.id)
+    )
+    if existing is not None:
+        return
 
-    for index in range(1, 3):
-        original_file_name = f"{doctor.username}_document_{index}.pdf"
-        stored_file_name = f"{doctor.username}_document_{index}.pdf"
-        content = build_pdf_bytes(f"{doctor.username}-document-{index}")
-        file_path = upload_dir / stored_file_name
-        file_path.write_bytes(content)
+    upload_directory = get_seed_upload_directory()
+    upload_directory.mkdir(parents=True, exist_ok=True)
+    content = (
+        b"%PDF-1.4\n"
+        + f"Demo qualification document for {doctor.first_name} {doctor.last_name}\n".encode("utf-8")
+        + b"%%EOF\n"
+    )
+    sha256 = hashlib.sha256(content).hexdigest()
+    stored_file_name = f"demo-{doctor.username.replace('.', '-')}.pdf"
+    destination = upload_directory / stored_file_name
+    destination.write_bytes(content)
 
-        sha256 = hashlib.sha256(content).hexdigest()
-        document = await session.scalar(
-            select(DoctorQualificationDocument).where(DoctorQualificationDocument.stored_file_name == stored_file_name)
+    session.add(
+        DoctorQualificationDocument(
+            doctor_id=doctor.id,
+            original_file_name=f"Сертификат {doctor.last_name}.pdf",
+            stored_file_name=stored_file_name,
+            content_type="application/pdf",
+            size_bytes=len(content),
+            sha256=sha256,
         )
-        if document is None:
-            session.add(
-                DoctorQualificationDocument(
-                    doctor_id=doctor.id,
-                    original_file_name=original_file_name,
-                    stored_file_name=stored_file_name,
-                    content_type="application/pdf",
-                    size_bytes=len(content),
-                    sha256=sha256,
-                )
-            )
-            continue
-
-        document.doctor_id = doctor.id
-        document.original_file_name = original_file_name
-        document.content_type = "application/pdf"
-        document.size_bytes = len(content)
-        document.sha256 = sha256
+    )
 
 
-async def sync_doctor_specializations(session, doctor: User, specialization_ids: list[int]) -> None:
+async def ensure_online_session(session, user: User) -> None:
+    existing = await session.scalar(select(RefreshSession).where(RefreshSession.user_id == user.id))
+    if existing is not None:
+        existing.updated_at = utc_now()
+        existing.expires_at = utc_now() + timedelta(days=7)
+        return
+
+    session.add(
+        RefreshSession(
+            jti=generate_jti(),
+            user_id=user.id,
+            token_hash=hash_token(f"demo-refresh-token-{user.username}"),
+            user_agent="VirtualMedic demo seed",
+            ip_address="127.0.0.1",
+            expires_at=utc_now() + timedelta(days=7),
+            updated_at=utc_now(),
+        )
+    )
+
+
+async def replace_doctor_specializations(
+    session,
+    doctor: User,
+    specialization_names: list[str],
+    specializations: dict[str, Specialization],
+) -> None:
     await session.execute(delete(doctor_specializations).where(doctor_specializations.c.doctor_id == doctor.id))
     await session.execute(
         insert(doctor_specializations),
-        [{"doctor_id": doctor.id, "specialization_id": specialization_id} for specialization_id in specialization_ids],
+        [
+            {
+                "doctor_id": doctor.id,
+                "specialization_id": specializations[name].id,
+            }
+            for name in specialization_names
+        ],
     )
 
 
-async def ensure_refresh_session(session, user: User) -> None:
-    active_session = await session.scalar(
-        select(RefreshSession).where(
-            RefreshSession.user_id == user.id,
-            RefreshSession.revoked_at.is_(None),
-        )
-    )
-    if active_session is not None:
-        return
-
-    jti = generate_jti()
-    refresh_token, expires_at = create_refresh_token(user.id, jti)
-    session.add(
-        RefreshSession(
-            jti=jti,
-            user_id=user.id,
-            token_hash=hash_token(refresh_token),
-            user_agent="seed-script/1.0",
-            ip_address="127.0.0.1",
-            expires_at=expires_at,
-        )
-    )
-
-
-async def upsert_question(session, author: User, text: str) -> Question:
-    question = await session.scalar(select(Question).where(Question.text == text))
-    if question is None:
-        question = Question(text=text, author_id=author.id)
-        session.add(question)
-        await session.flush()
-        return question
-
-    question.author_id = author.id
-    await session.flush()
-    return question
-
-
-async def ensure_comment(session, question: Question, author: User, text: str) -> None:
-    comment = await session.scalar(
-        select(QuestionComment).where(
-            QuestionComment.question_id == question.id,
-            QuestionComment.author_id == author.id,
-            QuestionComment.text == text,
-        )
-    )
-    if comment is None:
-        session.add(
-            QuestionComment(
-                question_id=question.id,
-                author_id=author.id,
-                text=text,
-            )
-        )
-
-
-async def main() -> None:
-    ensure_upload_directory()
-
+async def seed() -> None:
     async with sessionmaker() as session:
-        specializations = {}
-        for name in SPECIALIZATION_NAMES:
-            specializations[name] = await upsert_specialization(session, name)
-        await session.commit()
+        specializations = await get_or_create_specializations(session)
 
-        admins: list[User] = []
-        patients: list[User] = []
-        doctors: list[User] = []
+        doctors: dict[str, User] = {}
+        for username, first_name, last_name, names, is_online in DOCTORS:
+            doctor = await get_or_create_user(session, username, first_name, last_name, UserRole.DOCTOR)
+            doctor.is_verified_doctor = True
+            await replace_doctor_specializations(session, doctor, names, specializations)
+            await ensure_doctor_document(session, doctor)
+            if is_online:
+                await ensure_online_session(session, doctor)
+            doctors[username] = doctor
 
-        for payload in ADMIN_USERS:
-            admins.append(
-                await upsert_user(
-                    session,
-                    username=payload["username"],
-                    password=payload["password"],
-                    role=payload["role"],
-                    first_name=payload["first_name"],
-                    last_name=payload["last_name"],
-                )
-            )
+        patients: dict[str, User] = {}
+        for username, first_name, last_name in PATIENTS:
+            patients[username] = await get_or_create_user(session, username, first_name, last_name, UserRole.PATIENT)
 
-        for payload in PATIENT_USERS:
-            patients.append(
-                await upsert_user(
-                    session,
-                    username=payload["username"],
-                    password=payload["password"],
-                    role=UserRole.PATIENT,
-                    first_name=payload["first_name"],
-                    last_name=payload["last_name"],
-                )
-            )
+        await session.flush()
 
-        for payload in DOCTOR_USERS:
-            doctor = await upsert_user(
-                session,
-                username=payload["username"],
-                password=payload["password"],
-                role=UserRole.DOCTOR,
-                first_name=payload["first_name"],
-                last_name=payload["last_name"],
-                is_verified_doctor=payload["is_verified_doctor"],
+        for patient_username, text, answers in QUESTIONS:
+            question = await session.scalar(select(Question).where(Question.text == text))
+            if question is None:
+                question = Question(text=text, author_id=patients[patient_username].id)
+                session.add(question)
+                await session.flush()
+
+            existing_answer_authors = set(
+                (
+                    await session.execute(
+                        select(QuestionComment.author_id).where(QuestionComment.question_id == question.id)
+                    )
+                ).scalars()
             )
-            await sync_doctor_specializations(
-                session,
-                doctor,
-                [specializations[name].id for name in payload["specializations"]],
-            )
-            await ensure_doctor_documents(session, doctor)
-            doctors.append(doctor)
+            for doctor_username, answer_text in answers:
+                doctor = doctors[doctor_username]
+                if doctor.id not in existing_answer_authors:
+                    session.add(
+                        QuestionComment(
+                            text=answer_text,
+                            question_id=question.id,
+                            author_id=doctor.id,
+                        )
+                    )
 
         await session.commit()
 
-        for user in [*admins, *patients, *doctors]:
-            await ensure_refresh_session(session, user)
-        await session.commit()
-
-        verified_doctors = [doctor for doctor in doctors if doctor.is_verified_doctor]
-        for index, patient in enumerate(patients):
-            for offset in range(2):
-                topic = QUESTION_TOPICS[(index + offset) % len(QUESTION_TOPICS)]
-                question_text = f"[seed-q-{index * 2 + offset + 1:02d}] I need advice about {topic}."
-                question = await upsert_question(session, patient, question_text)
-
-                doctor = verified_doctors[(index + offset) % len(verified_doctors)]
-                answer_text = (
-                    f"[seed-a-{index * 2 + offset + 1:02d}] "
-                    f"{ANSWER_TEMPLATES[(index + offset) % len(ANSWER_TEMPLATES)]}"
-                )
-                await ensure_comment(session, question, doctor, answer_text)
-
-        await session.commit()
-
-        counts = {
-            "users": int(await session.scalar(select(func.count(User.id))) or 0),
-            "specializations": int(await session.scalar(select(func.count(Specialization.id))) or 0),
-            "documents": int(await session.scalar(select(func.count(DoctorQualificationDocument.id))) or 0),
-            "refresh_sessions": int(await session.scalar(select(func.count(RefreshSession.id))) or 0),
-            "questions": int(await session.scalar(select(func.count(Question.id))) or 0),
-            "question_comments": int(await session.scalar(select(func.count(QuestionComment.id))) or 0),
-        }
-
-    print("Seed completed:")
-    for key, value in counts.items():
-        print(f"  {key}: {value}")
-    print("Credentials:")
-    print("  admin: seed_admin_01 / SeedAdmin!123")
-    print("  patient: seed_patient_01 / SeedPatient!123")
-    print("  doctor: seed_doctor_01 / SeedDoctor!123")
+    print("Demo data seeded.")
+    print(f"Demo user password for seeded accounts: {DEMO_PASSWORD}")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(seed())
