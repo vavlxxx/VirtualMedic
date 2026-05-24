@@ -6,6 +6,7 @@ import { routes, withReturnTo } from './routes'
 import { buildQuestionHref, trimMultilineText } from './publicPageUtils'
 import { AskDoctorWizardModal } from './AskDoctorWizardModal'
 import { VirtualMedicPage } from './VirtualMedicLayout'
+import { ProfileImage } from './ProfileImage'
 import {
   formatRelativeQuestionTime,
   getQuestionCategory,
