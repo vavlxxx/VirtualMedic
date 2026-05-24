@@ -13,6 +13,7 @@ import { useRouter } from './router'
 
 const MIN_PAID_PRICE_RUB = 749
 const PRICE_PRESETS = [949, 1049, 1249]
+const PROFILE_DEFAULTS_STORAGE_KEY = 'askDoctorWizard.profileDefaults.v1'
 const usernamePattern = /^[a-zA-Z0-9_.-]{4,64}$/
 const strongPasswordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{10,128}$/
 
@@ -45,6 +46,29 @@ function parseAge(value) {
   return parsed
 }
 
+function readProfileDefaults() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(PROFILE_DEFAULTS_STORAGE_KEY) || '{}')
+    return {
+      patientName: typeof parsed.patientName === 'string' ? parsed.patientName : '',
+      patientAge: typeof parsed.patientAge === 'string' ? parsed.patientAge : '',
+      chronicConditions: typeof parsed.chronicConditions === 'string' ? parsed.chronicConditions : '',
+      contactEmail: typeof parsed.contactEmail === 'string' ? parsed.contactEmail : '',
+    }
+  } catch {
+    return {
+      patientName: '',
+      patientAge: '',
+      chronicConditions: '',
+      contactEmail: '',
+    }
+  }
+}
+
+function writeProfileDefaults(defaults) {
+  window.localStorage.setItem(PROFILE_DEFAULTS_STORAGE_KEY, JSON.stringify(defaults))
+}
+
 function formatQueuePeopleCount(count) {
   const normalizedCount = Math.abs(count)
   const lastTwoDigits = normalizedCount % 100
@@ -63,6 +87,42 @@ function formatQueuePeopleCount(count) {
   }
 
   return `${count} человек`
+}
+
+function mapQuestionFieldErrors(rawFieldErrors) {
+  const keyMap = {
+    specialization_id: 'selectedSpecializationId',
+    short_problem: 'shortProblem',
+    details: 'details',
+    question_format: 'questionFormat',
+    price_rub: 'priceRub',
+    patient_name: 'patientName',
+    patient_age: 'patientAge',
+    contact_email: 'contactEmail',
+    consent_terms: 'consentTerms',
+    consent_marketing: 'consentMarketing',
+  }
+
+  const friendlyMessageByField = {
+    selectedSpecializationId: 'Выберите специализацию врача.',
+    shortProblem: 'Коротко опишите, что вас беспокоит.',
+    details: 'Добавьте более подробное описание проблемы.',
+    priceRub: `Минимальная сумма ${MIN_PAID_PRICE_RUB} ₽`,
+    patientName: 'Укажите ваше имя.',
+    patientAge: 'Укажите возраст числом от 0 до 120.',
+    contactEmail: 'Укажите корректный адрес электронной почты.',
+    consentTerms: 'Подтвердите согласие с условиями и политикой обработки данных.',
+  }
+
+  return Object.entries(rawFieldErrors || {}).reduce((accumulator, [rawKey]) => {
+    const mappedKey = keyMap[rawKey]
+    if (!mappedKey) {
+      return accumulator
+    }
+
+    accumulator[mappedKey] = friendlyMessageByField[mappedKey] || 'Проверьте значение в этом поле.'
+    return accumulator
+  }, {})
 }
 
 export function AskDoctorWizardModal({
@@ -103,6 +163,7 @@ export function AskDoctorWizardModal({
 
   const [wizardError, setWizardError] = useState('')
   const [wizardMessage, setWizardMessage] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [isQuestionSubmitting, setIsQuestionSubmitting] = useState(false)
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
@@ -166,6 +227,13 @@ export function AskDoctorWizardModal({
     }
 
     const normalized = normalizeMultilineTextValue(initialQuestion || '')
+    const profileDefaults = readProfileDefaults()
+    const knownFirstName = normalizeOptionalTextValue(auth.user?.first_name || '')
+    const knownLastName = normalizeOptionalTextValue(auth.user?.last_name || '')
+    const knownFullName = [knownFirstName, knownLastName].filter(Boolean).join(' ')
+    const initialPatientName = knownFullName || profileDefaults.patientName
+    const usernameAsEmail = /^\S+@\S+\.\S+$/.test(auth.user?.username || '') ? auth.user.username : ''
+    const initialContactEmail = profileDefaults.contactEmail || usernameAsEmail
 
     setStep(WIZARD_STEPS.QUESTION)
     setSelectedSpecializationId('')
@@ -174,10 +242,10 @@ export function AskDoctorWizardModal({
     setQuestionFormat('paid')
     setPriceRub(String(MIN_PAID_PRICE_RUB))
     setPromoCode('')
-    setPatientName('')
-    setPatientAge('')
-    setChronicConditions('')
-    setContactEmail('')
+    setPatientName(initialPatientName)
+    setPatientAge(profileDefaults.patientAge)
+    setChronicConditions(profileDefaults.chronicConditions)
+    setContactEmail(initialContactEmail)
     setConsentTerms(false)
     setConsentMarketing(false)
     setAccountUsername('')
@@ -185,6 +253,7 @@ export function AskDoctorWizardModal({
     setAccountConfirmPassword('')
     setWizardError('')
     setWizardMessage('')
+    setFieldErrors({})
     setAuthError('')
     setAuthLoginPassword('')
     setAuthRegisterPassword('')
@@ -239,7 +308,7 @@ export function AskDoctorWizardModal({
     return () => {
       isCancelled = true
     }
-  }, [initialQuestion, isOpen, preferredSpecializationLabel])
+  }, [auth.user?.first_name, auth.user?.last_name, auth.user?.username, initialQuestion, isOpen, preferredSpecializationLabel])
 
   if (!isOpen) {
     return null
@@ -248,7 +317,20 @@ export function AskDoctorWizardModal({
   const goToStep = (nextStep) => {
     setWizardError('')
     setWizardMessage('')
+    setFieldErrors({})
     setStep(nextStep)
+  }
+
+  const clearFieldError = (fieldName) => {
+    setFieldErrors((current) => {
+      if (!current[fieldName]) {
+        return current
+      }
+
+      const next = { ...current }
+      delete next[fieldName]
+      return next
+    })
   }
 
   const openAuthModal = (mode) => {
@@ -263,23 +345,29 @@ export function AskDoctorWizardModal({
   }
 
   const handleQuestionStepContinue = () => {
+    const nextFieldErrors = {}
+
     if (!selectedSpecializationId) {
-      setWizardError('Выберите врача из списка специализаций.')
-      return
+      nextFieldErrors.selectedSpecializationId = 'Выберите специализацию врача.'
     }
 
     const normalizedShortProblem = normalizeOptionalTextValue(shortProblem)
     if (!normalizedShortProblem || normalizedShortProblem.length < 2) {
-      setWizardError('Коротко опишите проблему, минимум 2 символа.')
-      return
+      nextFieldErrors.shortProblem = 'Коротко опишите, что вас беспокоит.'
     }
 
     const normalizedDetails = normalizeMultilineTextValue(details)
     if (!normalizedDetails || normalizedDetails.length < 10) {
-      setWizardError('Расскажите подробнее, минимум 10 символов.')
+      nextFieldErrors.details = 'Расскажите подробнее, чтобы врач лучше понял ситуацию.'
+    }
+
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors)
+      setWizardError('Пожалуйста, заполните отмеченные поля.')
       return
     }
 
+    setFieldErrors({})
     goToStep(WIZARD_STEPS.FORMAT)
   }
 
@@ -296,10 +384,12 @@ export function AskDoctorWizardModal({
     const parsedPrice = Number.parseInt(priceRub, 10)
 
     if (!Number.isInteger(parsedPrice) || parsedPrice < MIN_PAID_PRICE_RUB) {
-      setWizardError(`Минимальная сумма ${MIN_PAID_PRICE_RUB} ₽`)
+      setFieldErrors({ priceRub: `Минимальная сумма ${MIN_PAID_PRICE_RUB} ₽` })
+      setWizardError('Проверьте стоимость вопроса.')
       return
     }
 
+    setFieldErrors({})
     goToStep(WIZARD_STEPS.PROFILE)
   }
 
@@ -330,64 +420,74 @@ export function AskDoctorWizardModal({
   }
 
   const validateProfileData = () => {
+    const nextFieldErrors = {}
+
     const normalizedPatientName = normalizeOptionalTextValue(patientName)
     if (!normalizedPatientName) {
-      return 'Укажите имя пациента.'
+      nextFieldErrors.patientName = 'Укажите ваше имя.'
     }
 
     const parsedAge = parseAge(patientAge)
     if (parsedAge === null || parsedAge < 0 || parsedAge > 120) {
-      return 'Возраст должен быть числом от 0 до 120.'
+      nextFieldErrors.patientAge = 'Укажите возраст числом от 0 до 120.'
     }
 
     const normalizedEmail = normalizeOptionalTextValue(contactEmail)
     if (!normalizedEmail || !/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
-      return 'Введите корректный email.'
+      nextFieldErrors.contactEmail = 'Укажите корректный адрес электронной почты.'
     }
 
     if (!consentTerms) {
-      return 'Нужно принять лицензионное соглашение и политику обработки данных.'
+      nextFieldErrors.consentTerms = 'Подтвердите согласие с условиями и политикой обработки данных.'
     }
 
     if (!auth.isAuthenticated) {
       const normalizedUsername = normalizeOptionalTextValue(accountUsername)
       if (!normalizedUsername || !usernamePattern.test(normalizedUsername)) {
-        return 'Username: 4-64 символа, латиница/цифры и ._-'
+        nextFieldErrors.accountUsername = 'Придумайте логин: 4-64 символа, латиница, цифры и знаки ._-'
       }
 
       if (!strongPasswordPattern.test(accountPassword)) {
-        return 'Пароль: минимум 10 символов, заглавная, строчная, цифра и спецсимвол.'
+        nextFieldErrors.accountPassword = 'Пароль должен быть надёжным: от 10 символов, с буквами, цифрой и спецсимволом.'
       }
 
       if (accountConfirmPassword !== accountPassword) {
-        return 'Пароли не совпадают.'
+        nextFieldErrors.accountConfirmPassword = 'Пароли не совпадают.'
       }
     }
 
     if (isPaidFormat) {
       const parsedPrice = Number.parseInt(priceRub, 10)
       if (!Number.isInteger(parsedPrice) || parsedPrice < MIN_PAID_PRICE_RUB) {
-        return `Минимальная сумма ${MIN_PAID_PRICE_RUB} ₽`
+        nextFieldErrors.priceRub = `Минимальная сумма ${MIN_PAID_PRICE_RUB} ₽`
       }
     }
 
-    return ''
+    return nextFieldErrors
   }
 
   const createQuestion = async () => {
     await runQuestionSubmit(async () => {
-      const validationError = validateProfileData()
-      if (validationError) {
-        setWizardError(validationError)
+      const validationErrors = validateProfileData()
+      if (Object.keys(validationErrors).length > 0) {
+        setFieldErrors(validationErrors)
+        setWizardError('Пожалуйста, заполните отмеченные поля.')
         return
       }
 
       setIsQuestionSubmitting(true)
       setWizardError('')
       setWizardMessage('')
+      setFieldErrors({})
 
       try {
         const response = await apiClient.createQuestion(buildQuestionPayload())
+        writeProfileDefaults({
+          patientName: normalizeOptionalTextValue(patientName),
+          patientAge: String(parseAge(patientAge) ?? ''),
+          chronicConditions: normalizeOptionalTextValue(chronicConditions),
+          contactEmail: normalizeOptionalTextValue(contactEmail),
+        })
         setWizardMessage('Вопрос создан. Перенаправляем на страницу вопроса...')
         onQuestionCreated?.(response)
         onClose()
@@ -395,7 +495,17 @@ export function AskDoctorWizardModal({
       } catch (error) {
         const resolvedError = resolveFormApiError(error, {
           defaultMessage: 'Не удалось создать вопрос. Попробуйте ещё раз.',
+          statusMessages: {
+            400: 'Проверьте заполненные данные и попробуйте снова.',
+            401: 'Сессия завершилась. Войдите в аккаунт ещё раз.',
+            403: 'Этот аккаунт не может публиковать вопросы. Войдите как пациент и повторите попытку.',
+            422: 'Пожалуйста, проверьте заполнение полей формы.',
+          },
         })
+        const mappedFieldErrors = mapQuestionFieldErrors(resolvedError.fieldErrors)
+        if (Object.keys(mappedFieldErrors).length > 0) {
+          setFieldErrors((current) => ({ ...current, ...mappedFieldErrors }))
+        }
         setWizardError(resolvedError.formError)
       } finally {
         setIsQuestionSubmitting(false)
@@ -404,6 +514,13 @@ export function AskDoctorWizardModal({
   }
 
   const handleProfileSubmit = async () => {
+    const validationErrors = validateProfileData()
+    if (Object.keys(validationErrors).length > 0) {
+      setFieldErrors(validationErrors)
+      setWizardError('Пожалуйста, заполните отмеченные поля.')
+      return
+    }
+
     if (auth.isAuthenticated) {
       await createQuestion()
       return
@@ -436,6 +553,7 @@ export function AskDoctorWizardModal({
           defaultMessage: 'Не удалось авторизоваться.',
           statusMessages: {
             401: 'Неверный логин или пароль.',
+            403: 'Вход временно недоступен для этого аккаунта.',
           },
         })
         setAuthError(resolvedError.formError)
@@ -457,7 +575,7 @@ export function AskDoctorWizardModal({
       const registerConfirmPassword = authRegisterConfirmPassword || accountConfirmPassword
 
       if (!normalizedUsername || !usernamePattern.test(normalizedUsername)) {
-        setAuthError('Введите корректный username: 4-64 символа, латиница/цифры и ._-')
+        setAuthError('Введите логин: 4-64 символа, латиница, цифры и знаки ._-')
         setIsAuthSubmitting(false)
         return
       }
@@ -499,7 +617,7 @@ export function AskDoctorWizardModal({
         const resolvedError = resolveFormApiError(error, {
           defaultMessage: 'Не удалось зарегистрироваться.',
           statusMessages: {
-            409: 'Пользователь с таким username уже существует.',
+            409: 'Такой логин уже занят. Попробуйте другой.',
           },
         })
         setAuthError(resolvedError.formError)
@@ -546,9 +664,12 @@ export function AskDoctorWizardModal({
               <label className="ask-wizard-field">
                 <span>Выберите врача*</span>
                 <select
-                  className="ask-wizard-input"
+                  className={`ask-wizard-input ${fieldErrors.selectedSpecializationId ? 'ask-wizard-input--error' : ''}`}
                   value={selectedSpecializationId}
-                  onChange={(event) => setSelectedSpecializationId(event.target.value)}
+                  onChange={(event) => {
+                    setSelectedSpecializationId(event.target.value)
+                    clearFieldError('selectedSpecializationId')
+                  }}
                   disabled={isSpecializationsLoading}
                 >
                   <option value="">Выберите врача</option>
@@ -558,6 +679,7 @@ export function AskDoctorWizardModal({
                     </option>
                   ))}
                 </select>
+                {fieldErrors.selectedSpecializationId ? <span className="ask-wizard-field-error">{fieldErrors.selectedSpecializationId}</span> : null}
               </label>
 
               {specializationsError ? <p className="ask-wizard-note ask-wizard-note--error">{specializationsError}</p> : null}
@@ -570,12 +692,16 @@ export function AskDoctorWizardModal({
               <label className="ask-wizard-field">
                 <span>Что вас беспокоит*</span>
                 <input
-                  className="ask-wizard-input"
+                  className={`ask-wizard-input ${fieldErrors.shortProblem ? 'ask-wizard-input--error' : ''}`}
                   type="text"
                   placeholder="Коротко опишите проблему"
                   value={shortProblem}
-                  onChange={(event) => setShortProblem(event.target.value)}
+                  onChange={(event) => {
+                    setShortProblem(event.target.value)
+                    clearFieldError('shortProblem')
+                  }}
                 />
+                {fieldErrors.shortProblem ? <span className="ask-wizard-field-error">{fieldErrors.shortProblem}</span> : null}
               </label>
 
               <label className="ask-wizard-field">
@@ -584,12 +710,16 @@ export function AskDoctorWizardModal({
                   <span>{detailsLength}/7500</span>
                 </span>
                 <textarea
-                  className="ask-wizard-textarea"
+                  className={`ask-wizard-textarea ${fieldErrors.details ? 'ask-wizard-input--error' : ''}`}
                   maxLength={7500}
                   placeholder="Расскажите о том, что тревожит — подробно и детально"
                   value={details}
-                  onChange={(event) => setDetails(event.target.value)}
+                  onChange={(event) => {
+                    setDetails(event.target.value)
+                    clearFieldError('details')
+                  }}
                 />
+                {fieldErrors.details ? <span className="ask-wizard-field-error">{fieldErrors.details}</span> : null}
               </label>
 
               {!auth.isAuthenticated ? (
@@ -664,13 +794,17 @@ export function AskDoctorWizardModal({
               <label className="ask-wizard-field">
                 <span>Сумма, ₽</span>
                 <input
-                  className="ask-wizard-input"
+                  className={`ask-wizard-input ${fieldErrors.priceRub ? 'ask-wizard-input--error' : ''}`}
                   type="number"
                   min={MIN_PAID_PRICE_RUB}
                   step="1"
                   value={priceRub}
-                  onChange={(event) => setPriceRub(event.target.value)}
+                  onChange={(event) => {
+                    setPriceRub(event.target.value)
+                    clearFieldError('priceRub')
+                  }}
                 />
+                {fieldErrors.priceRub ? <span className="ask-wizard-field-error">{fieldErrors.priceRub}</span> : null}
               </label>
 
               <p className="ask-wizard-note">Минимальная сумма {MIN_PAID_PRICE_RUB} ₽</p>
@@ -718,25 +852,33 @@ export function AskDoctorWizardModal({
               <label className="ask-wizard-field">
                 <span>Имя</span>
                 <input
-                  className="ask-wizard-input"
+                  className={`ask-wizard-input ${fieldErrors.patientName ? 'ask-wizard-input--error' : ''}`}
                   type="text"
                   placeholder="Как вас зовут?"
                   value={patientName}
-                  onChange={(event) => setPatientName(event.target.value)}
+                  onChange={(event) => {
+                    setPatientName(event.target.value)
+                    clearFieldError('patientName')
+                  }}
                 />
+                {fieldErrors.patientName ? <span className="ask-wizard-field-error">{fieldErrors.patientName}</span> : null}
               </label>
 
               <label className="ask-wizard-field">
                 <span>Возраст</span>
                 <input
-                  className="ask-wizard-input"
+                  className={`ask-wizard-input ${fieldErrors.patientAge ? 'ask-wizard-input--error' : ''}`}
                   type="number"
                   min="0"
                   max="120"
                   placeholder="Сколько вам лет?"
                   value={patientAge}
-                  onChange={(event) => setPatientAge(event.target.value)}
+                  onChange={(event) => {
+                    setPatientAge(event.target.value)
+                    clearFieldError('patientAge')
+                  }}
                 />
+                {fieldErrors.patientAge ? <span className="ask-wizard-field-error">{fieldErrors.patientAge}</span> : null}
               </label>
 
               <label className="ask-wizard-field">
@@ -753,47 +895,63 @@ export function AskDoctorWizardModal({
               <label className="ask-wizard-field">
                 <span>Email</span>
                 <input
-                  className="ask-wizard-input"
+                  className={`ask-wizard-input ${fieldErrors.contactEmail ? 'ask-wizard-input--error' : ''}`}
                   type="email"
                   placeholder="example@mail.ru"
                   value={contactEmail}
-                  onChange={(event) => setContactEmail(event.target.value)}
+                  onChange={(event) => {
+                    setContactEmail(event.target.value)
+                    clearFieldError('contactEmail')
+                  }}
                 />
+                {fieldErrors.contactEmail ? <span className="ask-wizard-field-error">{fieldErrors.contactEmail}</span> : null}
               </label>
 
               {!auth.isAuthenticated ? (
                 <>
                   <label className="ask-wizard-field">
-                    <span>Username</span>
+                    <span>Логин</span>
                     <input
-                      className="ask-wizard-input"
+                      className={`ask-wizard-input ${fieldErrors.accountUsername ? 'ask-wizard-input--error' : ''}`}
                       type="text"
-                      placeholder="patient_001"
+                      placeholder="Придумайте логин"
                       value={accountUsername}
-                      onChange={(event) => setAccountUsername(event.target.value)}
+                      onChange={(event) => {
+                        setAccountUsername(event.target.value)
+                        clearFieldError('accountUsername')
+                      }}
                     />
+                    {fieldErrors.accountUsername ? <span className="ask-wizard-field-error">{fieldErrors.accountUsername}</span> : null}
                   </label>
 
                   <label className="ask-wizard-field">
                     <span>Пароль</span>
                     <input
-                      className="ask-wizard-input"
+                      className={`ask-wizard-input ${fieldErrors.accountPassword ? 'ask-wizard-input--error' : ''}`}
                       type="password"
-                      placeholder="Минимум 10 символов"
+                      placeholder="Придумайте надежный пароль"
                       value={accountPassword}
-                      onChange={(event) => setAccountPassword(event.target.value)}
+                      onChange={(event) => {
+                        setAccountPassword(event.target.value)
+                        clearFieldError('accountPassword')
+                      }}
                     />
+                    {fieldErrors.accountPassword ? <span className="ask-wizard-field-error">{fieldErrors.accountPassword}</span> : null}
                   </label>
 
                   <label className="ask-wizard-field">
                     <span>Подтверждение пароля</span>
                     <input
-                      className="ask-wizard-input"
+                      className={`ask-wizard-input ${fieldErrors.accountConfirmPassword ? 'ask-wizard-input--error' : ''}`}
                       type="password"
                       placeholder="Повторите пароль"
                       value={accountConfirmPassword}
-                      onChange={(event) => setAccountConfirmPassword(event.target.value)}
+                      onChange={(event) => {
+                        setAccountConfirmPassword(event.target.value)
+                        clearFieldError('accountConfirmPassword')
+                      }}
                     />
+                    {fieldErrors.accountConfirmPassword ? <span className="ask-wizard-field-error">{fieldErrors.accountConfirmPassword}</span> : null}
                   </label>
                 </>
               ) : (
@@ -804,10 +962,14 @@ export function AskDoctorWizardModal({
                 <input
                   type="checkbox"
                   checked={consentTerms}
-                  onChange={(event) => setConsentTerms(event.target.checked)}
+                  onChange={(event) => {
+                    setConsentTerms(event.target.checked)
+                    clearFieldError('consentTerms')
+                  }}
                 />
                 <span>Я ознакомился с лицензионным соглашением и политикой обработки данных</span>
               </label>
+              {fieldErrors.consentTerms ? <p className="ask-wizard-field-error">{fieldErrors.consentTerms}</p> : null}
 
               <label className="ask-consent">
                 <input
@@ -905,7 +1067,7 @@ export function AskDoctorWizardModal({
             ) : (
               <form className="ask-wizard-grid" onSubmit={handleAuthRegister}>
                 <label className="ask-wizard-field">
-                  <span>Username</span>
+                  <span>Логин</span>
                   <input
                     className="ask-wizard-input"
                     type="text"

@@ -2,16 +2,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
 
-from src.api.v1.dependencies.auth import require_roles, require_verified_doctor
+from src.api.v1.dependencies.auth import CurrentUserDep, require_verified_doctor
 from src.api.v1.dependencies.db import DBDep
 from src.models.auth import User
-from src.models.enums import UserRole
 from src.schemas.qa import FreeQueueStatusDTO, QuestionCommentCreateDTO, QuestionCreateDTO, QuestionDTO
 from src.services.qa import QuestionService
 
 router = APIRouter(prefix="/questions", tags=["Q&A"])
 
-PatientDep = Annotated[User, Depends(require_roles(UserRole.PATIENT))]
 VerifiedDoctorDep = Annotated[User, Depends(require_verified_doctor)]
 
 
@@ -35,8 +33,8 @@ async def get_question(question_id: int, db: DBDep) -> QuestionDTO:
 
 
 @router.post("/", response_model=QuestionDTO, status_code=status.HTTP_201_CREATED)
-async def create_question(payload: QuestionCreateDTO, db: DBDep, patient: PatientDep) -> QuestionDTO:
-    return await QuestionService(db).create_question(payload, patient)
+async def create_question(payload: QuestionCreateDTO, db: DBDep, current_user: CurrentUserDep) -> QuestionDTO:
+    return await QuestionService(db).create_question(payload, current_user)
 
 
 @router.post("/{question_id}/comments", response_model=QuestionDTO, status_code=status.HTTP_201_CREATED)

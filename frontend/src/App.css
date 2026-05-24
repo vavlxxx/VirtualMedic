@@ -385,6 +385,18 @@ html {
   box-shadow: 0 0 0 3px rgba(96, 164, 229, 0.22);
 }
 
+.ask-wizard-input--error,
+.ask-wizard-input--error:focus {
+  border-color: #e25555;
+  box-shadow: 0 0 0 3px rgba(226, 85, 85, 0.16);
+}
+
+.ask-wizard-field-error {
+  color: #b42318;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
 .ask-wizard-note {
   margin: 0;
   color: #5f6f83;
