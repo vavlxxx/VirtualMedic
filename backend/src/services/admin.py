@@ -15,7 +15,6 @@ from src.schemas.admin import (
     AdminUserListItemDTO,
     AdminUsersResponseDTO,
     PendingDoctorsResponseDTO,
-    PendingDoctorsResponseDTO,
     UpdateUserStatusRequestDTO,
     AdminUpdateUserRequestDTO,
     VerifyDoctorRequestDTO,
@@ -123,9 +122,7 @@ class AdminService(BaseService):
             user.last_name = payload.last_name
         if payload.role is not None:
             if user_id == admin.id and payload.role != admin.role:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot change your own role"
-                )
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot change your own role")
             user.role = payload.role
 
         await self.db.commit()
