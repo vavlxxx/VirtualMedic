@@ -162,7 +162,7 @@ function PublicQuestionsFeedPage() {
         <div className="vm-shell">
           <div className="vm-page-hero">
             <div>
-              <h1>Лента открытых вопросов</h1>
+              <h1>Лента открытых консультаций</h1>
               <p>Задайте вопрос и получите ответы от квалифицированных специалистов платформы.</p>
             </div>
           </div>
@@ -195,8 +195,8 @@ function PublicQuestionsFeedPage() {
 
           {isLoading ? (
             <section className="vm-card vm-empty-state">
-              <h2>Загружаем вопросы</h2>
-              <p>Получаем актуальную открытую ленту вопросов.</p>
+              <h2>Загружаем консультации</h2>
+              <p>Получаем актуальную открытую ленту консультаций.</p>
             </section>
           ) : null}
 
@@ -250,7 +250,7 @@ function PublicQuestionsFeedPage() {
                       </div>
 
                       <AppLink className="vm-button vm-button--ghost" href={buildQuestionHref(question.id)}>
-                        {hasAnswers ? 'Читать подробнее' : 'Перейти к вопросу'}
+                        {hasAnswers ? 'Читать подробнее' : 'Перейти к консультации'}
                       </AppLink>
                     </div>
 
@@ -283,7 +283,7 @@ function PublicQuestionsFeedPage() {
 
               {!filteredQuestions.length ? (
                 <section className="vm-card vm-empty-state">
-                  <h2>Подходящих вопросов не найдено</h2>
+                  <h2>Подходящих консультаций не найдено</h2>
                   <p>Смените направление или попробуйте другой поисковый запрос.</p>
                 </section>
               ) : null}

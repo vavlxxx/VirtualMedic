@@ -637,14 +637,14 @@ function App() {
             <div className="vm-live-layout">
               <article className="vm-live-panel">
                 <header className="vm-live-panel__header">
-                  <h4>Последние вопросы</h4>
+                  <h4>Последние консультации</h4>
                   <AppLink className="vm-live-panel__link" href={routes.questions}>
-                    Все вопросы
+                    Все консультации
                   </AppLink>
                 </header>
 
                 {isLiveFeedLoading ? (
-                  <p className="vm-live-panel__state">Загружаем актуальную ленту вопросов...</p>
+                  <p className="vm-live-panel__state">Загружаем актуальную ленту консультаций...</p>
                 ) : null}
 
                 {!isLiveFeedLoading && liveFeedError ? (
@@ -679,7 +679,7 @@ function App() {
                     })}
 
                     {!liveQuestions.length ? (
-                      <p className="vm-live-panel__state">Пока нет опубликованных вопросов.</p>
+                      <p className="vm-live-panel__state">Пока нет опубликованных консультаций.</p>
                     ) : null}
                   </div>
                 ) : null}

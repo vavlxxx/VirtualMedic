@@ -39,7 +39,7 @@ function NotFoundPage() {
               Каталог врачей
             </AppLink>
             <AppLink className="public-link-button public-link-button--secondary" href={routes.questions}>
-              Лента вопросов
+              Лента консультаций
             </AppLink>
           </div>
         </section>

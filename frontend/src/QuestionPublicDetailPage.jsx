@@ -71,16 +71,16 @@ function QuestionPublicDetailPage() {
         <div className="vm-shell">
           <div className="vm-breadcrumbs">
             <span>Главная</span>
-            <span>Вопросы</span>
-            <span>Вопрос #{questionId || '...'}</span>
+            <span>Консультации</span>
+            <span>Консультация #{questionId || '...'}</span>
           </div>
 
           {!questionId ? (
             <section className="vm-card vm-empty-state">
               <h2>Вопрос не выбран</h2>
-              <p>Откройте ленту открытых вопросов и перейдите в конкретное обсуждение.</p>
+              <p>Откройте ленту открытых консультаций и перейдите в конкретное обсуждение.</p>
               <AppLink className="vm-button" href={routes.questions}>
-                К ленте вопросов
+                К ленте консультаций
               </AppLink>
             </section>
           ) : null}
@@ -94,7 +94,7 @@ function QuestionPublicDetailPage() {
 
           {!isLoading && errorMessage ? (
             <section className="vm-card vm-empty-state">
-              <h2>Не удалось открыть вопрос</h2>
+              <h2>Не удалось открыть консультацию</h2>
               <p>{errorMessage}</p>
               <AppLink className="vm-button" href={routes.questions}>
                 Вернуться в ленту
