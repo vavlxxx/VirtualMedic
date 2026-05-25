@@ -16,7 +16,7 @@ import LoginDesktopPage from './LoginDesktopPage.jsx'
 import RegistrationDesktopPage from './RegistrationDesktopPage.jsx'
 import NotFoundPage from './NotFoundPage.jsx'
 import { MaintenanceGate, MaintenanceProvider } from './maintenance/MaintenanceContext.jsx'
-import { AuthProvider } from './auth/AuthContext.jsx'
+import { AuthProvider, useAuth } from './auth/AuthContext.jsx'
 import { GuestOnlyRoute, ProtectedRoute } from './RouteGuards.jsx'
 import { PatientProfileCompletionGate } from './PatientProfileCompletionGate.jsx'
 import { RouterProvider, useRouter } from './router.jsx'
@@ -136,14 +136,30 @@ function RouteRenderer() {
   return page
 }
 
+function PreloaderGate({ children }) {
+  const auth = useAuth()
+
+  useEffect(() => {
+    if (auth.isReady) {
+      if (typeof window.__resolvePreloader === 'function') {
+        window.__resolvePreloader('authReady')
+      }
+    }
+  }, [auth.isReady])
+
+  return children
+}
+
 function RootApp() {
   return (
     <RouterProvider>
       <AuthProvider>
         <MaintenanceProvider>
           <MaintenanceGate>
-            <RouteRenderer />
-            <PatientProfileCompletionGate />
+            <PreloaderGate>
+              <RouteRenderer />
+              <PatientProfileCompletionGate />
+            </PreloaderGate>
           </MaintenanceGate>
         </MaintenanceProvider>
       </AuthProvider>
