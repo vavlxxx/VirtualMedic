@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError } from './api/client'
 import { useAuth } from './auth/AuthContext'
+import { AvatarCropModal } from './AvatarCropModal'
 import { ProfileImage } from './ProfileImage'
 import { resolveProfileImageSrc } from './profileImageSupport'
 
@@ -50,10 +51,13 @@ export function PatientProfileCompletionGate() {
   const [birthDateVisibleToDoctors, setBirthDateVisibleToDoctors] = useState(false)
   const [selectedAvatarFile, setSelectedAvatarFile] = useState(null)
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState('')
+  const [cropSourceUrl, setCropSourceUrl] = useState('')
+  const [cropSourceFileName, setCropSourceFileName] = useState('')
   const [errors, setErrors] = useState({})
   const [formError, setFormError] = useState('')
   const [formMessage, setFormMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const avatarInputRef = useRef(null)
 
   useEffect(() => {
     if (!auth.user) {
@@ -85,6 +89,14 @@ export function PatientProfileCompletionGate() {
     }
   }, [avatarPreviewUrl])
 
+  useEffect(() => {
+    return () => {
+      if (cropSourceUrl) {
+        URL.revokeObjectURL(cropSourceUrl)
+      }
+    }
+  }, [cropSourceUrl])
+
   if (!auth.isReady || !auth.isAuthenticated || !shouldShowGate) {
     return null
   }
@@ -114,9 +126,42 @@ export function PatientProfileCompletionGate() {
       URL.revokeObjectURL(avatarPreviewUrl)
     }
 
-    setSelectedAvatarFile(file)
-    setAvatarPreviewUrl(URL.createObjectURL(file))
+    if (cropSourceUrl) {
+      URL.revokeObjectURL(cropSourceUrl)
+    }
+
+    setCropSourceUrl(URL.createObjectURL(file))
+    setCropSourceFileName(file.name || 'avatar')
     setFormError('')
+  }
+
+  const handleApplyCrop = (croppedFile) => {
+    if (avatarPreviewUrl) {
+      URL.revokeObjectURL(avatarPreviewUrl)
+    }
+
+    setSelectedAvatarFile(croppedFile)
+    setAvatarPreviewUrl(URL.createObjectURL(croppedFile))
+
+    if (cropSourceUrl) {
+      URL.revokeObjectURL(cropSourceUrl)
+      setCropSourceUrl('')
+    }
+
+    setCropSourceFileName('')
+  }
+
+  const handleCancelCrop = () => {
+    if (cropSourceUrl) {
+      URL.revokeObjectURL(cropSourceUrl)
+      setCropSourceUrl('')
+    }
+
+    setCropSourceFileName('')
+
+    if (avatarInputRef.current) {
+      avatarInputRef.current.value = ''
+    }
   }
 
   const handleSubmit = async (event) => {
@@ -146,6 +191,7 @@ export function PatientProfileCompletionGate() {
 
       setSelectedAvatarFile(null)
       setAvatarPreviewUrl('')
+      setCropSourceFileName('')
       setFormMessage('Профиль заполнен. Спасибо!')
     } catch (error) {
       setFormError(error instanceof ApiError ? error.message : 'Не удалось сохранить профиль. Попробуйте ещё раз.')
@@ -234,11 +280,26 @@ export function PatientProfileCompletionGate() {
             <label className="vm-profile-gate__avatar-field">
               <span className="vm-profile-gate__label">Фото профиля (необязательно)</span>
               <input
+                ref={avatarInputRef}
+                className="vm-profile-gate__avatar-input"
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
                 onChange={handleAvatarChange}
                 disabled={isSubmitting}
               />
+              <button
+                className="vm-profile-gate__avatar-button"
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={isSubmitting}
+              >
+                {selectedAvatarFile ? 'Изменить фото' : 'Выбрать фото'}
+              </button>
+              {selectedAvatarFile ? (
+                <small className="vm-profile-gate__avatar-meta">
+                  Фото подготовлено и будет загружено после сохранения профиля.
+                </small>
+              ) : null}
               <small>Если фото не загружать, автоматически установим аккуратный дефолтный аватар.</small>
             </label>
           </div>
@@ -251,6 +312,15 @@ export function PatientProfileCompletionGate() {
           </button>
         </form>
       </section>
+
+      {cropSourceUrl ? (
+        <AvatarCropModal
+          sourceUrl={cropSourceUrl}
+          sourceFileName={cropSourceFileName}
+          onApply={handleApplyCrop}
+          onCancel={handleCancelCrop}
+        />
+      ) : null}
     </div>
   )
 }

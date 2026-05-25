@@ -175,8 +175,35 @@
   color: #17345d;
 }
 
-.vm-profile-gate__avatar-field input[type='file'] {
-  width: 100%;
+.vm-profile-gate__avatar-input {
+  display: none;
+}
+
+.vm-profile-gate__avatar-button {
+  border: 1px solid rgba(25, 70, 140, 0.28);
+  border-radius: 12px;
+  background: linear-gradient(150deg, #eff5ff, #d9e6fb);
+  color: #133d7d;
+  font: 600 0.93rem/1.2 'IBM Plex Sans', sans-serif;
+  padding: 0.72rem 0.95rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.vm-profile-gate__avatar-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px rgba(24, 70, 143, 0.2);
+  background: linear-gradient(150deg, #e5efff, #cfddf7);
+}
+
+.vm-profile-gate__avatar-button:disabled {
+  opacity: 0.64;
+  cursor: not-allowed;
+}
+
+.vm-profile-gate__avatar-meta {
+  color: #0f5a34;
+  font-weight: 600;
 }
 
 .vm-profile-gate__avatar-field small {
@@ -228,6 +255,152 @@
   opacity: 0.72;
 }
 
+.vm-avatar-cropper {
+  position: fixed;
+  inset: 0;
+  z-index: 1310;
+  display: grid;
+  place-items: center;
+  padding: clamp(0.9rem, 2vw, 1.6rem);
+}
+
+.vm-avatar-cropper__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 18, 33, 0.76);
+  backdrop-filter: blur(4px);
+}
+
+.vm-avatar-cropper__card {
+  position: relative;
+  width: min(680px, 100%);
+  border-radius: 22px;
+  border: 1px solid rgba(214, 227, 243, 0.35);
+  background: linear-gradient(165deg, rgba(250, 252, 255, 0.98), rgba(238, 246, 255, 0.98));
+  box-shadow: 0 24px 48px rgba(6, 16, 34, 0.45);
+  overflow: hidden;
+}
+
+.vm-avatar-cropper__header {
+  padding: 1.2rem 1.2rem 0.85rem;
+}
+
+.vm-avatar-cropper__header h3 {
+  margin: 0;
+  font: 800 1.2rem/1.2 'Manrope', sans-serif;
+  color: #122846;
+}
+
+.vm-avatar-cropper__header p {
+  margin: 0.45rem 0 0;
+  color: rgba(19, 43, 74, 0.82);
+}
+
+.vm-avatar-cropper__body {
+  display: grid;
+  gap: 0.9rem;
+  padding: 0 1.2rem 1rem;
+}
+
+.vm-avatar-cropper__loading {
+  color: #1b3f73;
+  font-weight: 600;
+}
+
+.vm-avatar-cropper__stage {
+  position: relative;
+  width: min(100%, 360px);
+  aspect-ratio: 1 / 1;
+  margin-inline: auto;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(31, 69, 129, 0.28);
+  background: #dfe8f5;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+
+.vm-avatar-cropper__stage:active {
+  cursor: grabbing;
+}
+
+.vm-avatar-cropper__image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: center;
+  pointer-events: none;
+}
+
+.vm-avatar-cropper__mask {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.vm-avatar-cropper__mask::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, transparent 44%, rgba(4, 11, 24, 0.56) 46%);
+}
+
+.vm-avatar-cropper__mask::after {
+  content: '';
+  position: absolute;
+  inset: 12%;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 1px rgba(19, 56, 109, 0.2);
+}
+
+.vm-avatar-cropper__zoom {
+  display: grid;
+  gap: 0.4rem;
+  color: #15365f;
+  font-weight: 600;
+}
+
+.vm-avatar-cropper__zoom input {
+  width: 100%;
+}
+
+.vm-avatar-cropper__error {
+  color: #a51936;
+  font-size: 0.9rem;
+}
+
+.vm-avatar-cropper__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  padding: 0.9rem 1.2rem 1.2rem;
+}
+
+.vm-avatar-cropper__button {
+  border: none;
+  border-radius: 12px;
+  padding: 0.72rem 0.95rem;
+  font: 600 0.92rem/1.2 'IBM Plex Sans', sans-serif;
+  cursor: pointer;
+}
+
+.vm-avatar-cropper__button--ghost {
+  color: #12396d;
+  background: rgba(236, 242, 252, 0.95);
+}
+
+.vm-avatar-cropper__button--primary {
+  color: #fff;
+  background: linear-gradient(145deg, #123a7e, #255fbb);
+}
+
+.vm-avatar-cropper__button:disabled {
+  opacity: 0.68;
+  cursor: not-allowed;
+}
+
 @keyframes vmProfileGateEnter {
   from {
     opacity: 0;
@@ -259,5 +432,13 @@
   .vm-profile-gate__avatar-preview {
     width: 82px;
     height: 82px;
+  }
+
+  .vm-avatar-cropper__actions {
+    flex-direction: column-reverse;
+  }
+
+  .vm-avatar-cropper__button {
+    width: 100%;
   }
 }
