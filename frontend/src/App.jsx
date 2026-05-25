@@ -49,9 +49,9 @@ const symptomExamples = [
   'боль в животе',
 ]
 
-const LIVE_FEED_QUESTIONS_LIMIT = 8
-const LIVE_FEED_DOCTORS_LIMIT = 8
+const LIVE_FEED_PAGE_SIZE = 10
 const LIVE_FEED_POLL_INTERVAL_MS = 12_000
+const LIVE_FEED_SCROLL_THRESHOLD_PX = 80
 
 function getAnswersLabel(commentsCount) {
   if (commentsCount === 1) {
@@ -66,6 +66,22 @@ function getAnswersLabel(commentsCount) {
   }
 
   return `${commentsCount} ответов`
+}
+
+function mergeUniqueById(primaryList, secondaryList) {
+  const seenIds = new Set()
+  const merged = []
+
+  for (const item of [...primaryList, ...secondaryList]) {
+    if (seenIds.has(item.id)) {
+      continue
+    }
+
+    seenIds.add(item.id)
+    merged.push(item)
+  }
+
+  return merged
 }
 
 function App() {
@@ -83,6 +99,12 @@ function App() {
   const [onlineDoctors, setOnlineDoctors] = useState([])
   const [isLiveFeedLoading, setIsLiveFeedLoading] = useState(true)
   const [liveFeedError, setLiveFeedError] = useState('')
+  const [isLoadingMoreQuestions, setIsLoadingMoreQuestions] = useState(false)
+  const [isLoadingMoreDoctors, setIsLoadingMoreDoctors] = useState(false)
+  const [hasMoreQuestions, setHasMoreQuestions] = useState(true)
+  const [hasMoreDoctors, setHasMoreDoctors] = useState(true)
+  const [loadMoreQuestionsError, setLoadMoreQuestionsError] = useState('')
+  const [loadMoreDoctorsError, setLoadMoreDoctorsError] = useState('')
   const [liveFeedUpdatedAt, setLiveFeedUpdatedAt] = useState(null)
   const [isAskDoctorModalOpen, setIsAskDoctorModalOpen] = useState(false)
 
@@ -229,18 +251,43 @@ function App() {
         const [questionsResponse, doctorsResponse] = await Promise.all([
           apiClient.listQuestions({
             offset: 0,
-            limit: LIVE_FEED_QUESTIONS_LIMIT,
+            limit: LIVE_FEED_PAGE_SIZE,
           }),
           apiClient.listDoctors({
             offset: 0,
-            limit: LIVE_FEED_DOCTORS_LIMIT,
+            limit: LIVE_FEED_PAGE_SIZE,
             online_only: true,
           }),
         ])
 
         if (!isCancelled) {
-          setLiveQuestions(questionsResponse)
-          setOnlineDoctors(doctorsResponse.filter((doctor) => doctor.is_online))
+          const filteredDoctors = doctorsResponse.filter((doctor) => doctor.is_online)
+
+          setLiveQuestions((current) => {
+            if (!silent) {
+              return questionsResponse
+            }
+
+            const merged = mergeUniqueById(questionsResponse, current)
+            return merged.slice(0, Math.max(current.length, questionsResponse.length))
+          })
+
+          setOnlineDoctors((current) => {
+            if (!silent) {
+              return filteredDoctors
+            }
+
+            const merged = mergeUniqueById(filteredDoctors, current)
+            return merged.slice(0, Math.max(current.length, filteredDoctors.length))
+          })
+
+          if (!silent) {
+            setHasMoreQuestions(questionsResponse.length === LIVE_FEED_PAGE_SIZE)
+            setHasMoreDoctors(filteredDoctors.length === LIVE_FEED_PAGE_SIZE)
+            setLoadMoreQuestionsError('')
+            setLoadMoreDoctorsError('')
+          }
+
           setLiveFeedError('')
           setLiveFeedUpdatedAt(new Date())
         }
@@ -265,6 +312,76 @@ function App() {
       window.clearInterval(intervalId)
     }
   }, [])
+
+  const loadMoreQuestions = async () => {
+    if (isLiveFeedLoading || isLoadingMoreQuestions || !hasMoreQuestions) {
+      return
+    }
+
+    const offset = liveQuestions.length
+    setIsLoadingMoreQuestions(true)
+
+    try {
+      const response = await apiClient.listQuestions({
+        offset,
+        limit: LIVE_FEED_PAGE_SIZE,
+      })
+
+      setLiveQuestions((current) => mergeUniqueById(current, response))
+      setHasMoreQuestions(response.length === LIVE_FEED_PAGE_SIZE)
+      setLoadMoreQuestionsError('')
+    } catch {
+      setLoadMoreQuestionsError('Не удалось загрузить еще вопросы. Прокрутите список снова.')
+    } finally {
+      setIsLoadingMoreQuestions(false)
+    }
+  }
+
+  const loadMoreDoctors = async () => {
+    if (isLiveFeedLoading || isLoadingMoreDoctors || !hasMoreDoctors) {
+      return
+    }
+
+    const offset = onlineDoctors.length
+    setIsLoadingMoreDoctors(true)
+
+    try {
+      const response = await apiClient.listDoctors({
+        offset,
+        limit: LIVE_FEED_PAGE_SIZE,
+        online_only: true,
+      })
+      const filteredResponse = response.filter((doctor) => doctor.is_online)
+
+      setOnlineDoctors((current) => mergeUniqueById(current, filteredResponse))
+      setHasMoreDoctors(filteredResponse.length === LIVE_FEED_PAGE_SIZE)
+      setLoadMoreDoctorsError('')
+    } catch {
+      setLoadMoreDoctorsError('Не удалось загрузить еще врачей. Прокрутите список снова.')
+    } finally {
+      setIsLoadingMoreDoctors(false)
+    }
+  }
+
+  const handleQuestionsScroll = (event) => {
+    const container = event.currentTarget
+    const remainingSpace =
+      container.scrollHeight - container.scrollTop - container.clientHeight
+
+    if (remainingSpace <= LIVE_FEED_SCROLL_THRESHOLD_PX) {
+      loadMoreQuestions()
+    }
+  }
+
+  const handleDoctorsScroll = (event) => {
+    const container = event.currentTarget
+    const remainingSpace =
+      container.scrollHeight - container.scrollTop - container.clientHeight
+
+    if (remainingSpace <= LIVE_FEED_SCROLL_THRESHOLD_PX) {
+      loadMoreDoctors()
+    }
+  }
 
   useEffect(() => {
     if (!mobileTestimonialsCount) {
@@ -652,7 +769,7 @@ function App() {
                 ) : null}
 
                 {!isLiveFeedLoading && !liveFeedError ? (
-                  <div className="vm-live-question-list">
+                  <div className="vm-live-question-list vm-live-scroll-list" onScroll={handleQuestionsScroll}>
                     {liveQuestions.map((question) => {
                       const commentsCount = question.comments.length
 
@@ -681,6 +798,18 @@ function App() {
                     {!liveQuestions.length ? (
                       <p className="vm-live-panel__state">Пока нет опубликованных консультаций.</p>
                     ) : null}
+
+                    {isLoadingMoreQuestions ? (
+                      <p className="vm-live-panel__state vm-live-panel__state--muted">
+                        Загружаем еще вопросы...
+                      </p>
+                    ) : null}
+
+                    {!isLoadingMoreQuestions && loadMoreQuestionsError ? (
+                      <p className="vm-live-panel__state vm-live-panel__state--error">
+                        {loadMoreQuestionsError}
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
               </article>
@@ -700,7 +829,7 @@ function App() {
                 ) : null}
 
                 {!isLiveFeedLoading && onlineDoctors.length ? (
-                  <div className="vm-live-doctor-list">
+                  <div className="vm-live-doctor-list vm-live-scroll-list vm-live-scroll-list--doctors" onScroll={handleDoctorsScroll}>
                     {onlineDoctors.map((doctor) => {
                       const profile = getDoctorVisualProfile(doctor)
 
@@ -725,6 +854,18 @@ function App() {
                         </AppLink>
                       )
                     })}
+
+                    {isLoadingMoreDoctors ? (
+                      <p className="vm-live-panel__state vm-live-panel__state--muted">
+                        Загружаем еще врачей...
+                      </p>
+                    ) : null}
+
+                    {!isLoadingMoreDoctors && loadMoreDoctorsError ? (
+                      <p className="vm-live-panel__state vm-live-panel__state--error">
+                        {loadMoreDoctorsError}
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
               </aside>

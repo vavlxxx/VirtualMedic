@@ -83,10 +83,25 @@ html {
   color: #dc2626;
 }
 
+.vm-live-panel__state--muted {
+  text-align: center;
+  font-size: 0.82rem;
+}
+
 .vm-live-question-list,
 .vm-live-doctor-list {
   display: grid;
   gap: 0.65rem;
+}
+
+.vm-live-scroll-list {
+  max-height: min(70vh, 42rem);
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.vm-live-scroll-list--doctors {
+  max-height: min(70vh, 35rem);
 }
 
 .vm-live-question-item {
