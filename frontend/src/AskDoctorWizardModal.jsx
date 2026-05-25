@@ -24,6 +24,13 @@ const WIZARD_STEPS = Object.freeze({
   PROFILE: 'profile',
 })
 
+const STEP_ORDER = Object.freeze({
+  [WIZARD_STEPS.QUESTION]: 0,
+  [WIZARD_STEPS.FORMAT]: 1,
+  [WIZARD_STEPS.PRICE]: 2,
+  [WIZARD_STEPS.PROFILE]: 3,
+})
+
 function splitPatientName(value) {
   const normalized = normalizeOptionalTextValue(value || '')
   if (!normalized) {
@@ -101,6 +108,9 @@ function mapQuestionFieldErrors(rawFieldErrors) {
     contact_email: 'contactEmail',
     consent_terms: 'consentTerms',
     consent_marketing: 'consentMarketing',
+    username: 'accountUsername',
+    password: 'accountPassword',
+    confirm_password: 'accountConfirmPassword',
   }
 
   const friendlyMessageByField = {
@@ -112,6 +122,9 @@ function mapQuestionFieldErrors(rawFieldErrors) {
     patientAge: 'Укажите возраст числом от 0 до 120.',
     contactEmail: 'Укажите корректный адрес электронной почты.',
     consentTerms: 'Подтвердите согласие с условиями и политикой обработки данных.',
+    accountUsername: 'Придумайте логин: 4-64 символа, латиница, цифры и знаки ._-',
+    accountPassword: 'Пароль должен быть надёжным: от 10 символов, с буквами, цифрой и спецсимволом.',
+    accountConfirmPassword: 'Пароли не совпадают.',
   }
 
   return Object.entries(rawFieldErrors || {}).reduce((accumulator, [rawKey]) => {
@@ -138,6 +151,7 @@ export function AskDoctorWizardModal({
   const runAuthSubmit = useSubmitLock()
 
   const [step, setStep] = useState(WIZARD_STEPS.QUESTION)
+  const [stepTransitionDirection, setStepTransitionDirection] = useState('forward')
   const [specializations, setSpecializations] = useState([])
   const [specializationsError, setSpecializationsError] = useState('')
   const [isSpecializationsLoading, setIsSpecializationsLoading] = useState(false)
@@ -236,6 +250,7 @@ export function AskDoctorWizardModal({
     const initialContactEmail = profileDefaults.contactEmail || usernameAsEmail
 
     setStep(WIZARD_STEPS.QUESTION)
+    setStepTransitionDirection('forward')
     setSelectedSpecializationId('')
     setShortProblem(normalized)
     setDetails(normalized)
@@ -315,6 +330,9 @@ export function AskDoctorWizardModal({
   }
 
   const goToStep = (nextStep) => {
+    const currentStepOrder = STEP_ORDER[step] ?? 0
+    const nextStepOrder = STEP_ORDER[nextStep] ?? currentStepOrder
+    setStepTransitionDirection(nextStepOrder < currentStepOrder ? 'backward' : 'forward')
     setWizardError('')
     setWizardMessage('')
     setFieldErrors({})
@@ -336,6 +354,10 @@ export function AskDoctorWizardModal({
   const openAuthModal = (mode) => {
     setAuthMode(mode)
     setAuthError('')
+    if (mode === 'register') {
+      setAuthRegisterPassword(accountPassword)
+      setAuthRegisterConfirmPassword(accountConfirmPassword)
+    }
     setIsAuthModalOpen(true)
   }
 
@@ -513,6 +535,62 @@ export function AskDoctorWizardModal({
     })
   }
 
+  const registerAndCreateQuestion = async () => {
+    await runQuestionSubmit(async () => {
+      setIsQuestionSubmitting(true)
+      setWizardError('')
+      setWizardMessage('')
+      setFieldErrors({})
+
+      try {
+        const normalizedUsername = normalizeOptionalTextValue(accountUsername)
+
+        const { firstName, lastName } = splitPatientName(patientName)
+        await auth.registerPatient({
+          username: normalizeUsernameValue(normalizedUsername),
+          password: accountPassword,
+          first_name: firstName,
+          last_name: lastName,
+        })
+
+        await auth.login({
+          username: normalizeUsernameValue(normalizedUsername),
+          password: accountPassword,
+        })
+
+        const response = await apiClient.createQuestion(buildQuestionPayload())
+        writeProfileDefaults({
+          patientName: normalizeOptionalTextValue(patientName),
+          patientAge: String(parseAge(patientAge) ?? ''),
+          chronicConditions: normalizeOptionalTextValue(chronicConditions),
+          contactEmail: normalizeOptionalTextValue(contactEmail),
+        })
+        setWizardMessage('Вопрос создан. Перенаправляем на страницу вопроса...')
+        onQuestionCreated?.(response)
+        onClose()
+        navigate(buildQuestionHref(response.id))
+      } catch (error) {
+        const resolvedError = resolveFormApiError(error, {
+          defaultMessage: 'Не удалось создать аккаунт или опубликовать вопрос. Попробуйте ещё раз.',
+          statusMessages: {
+            400: 'Проверьте заполненные данные и попробуйте снова.',
+            401: 'Сессия завершилась. Войдите в аккаунт ещё раз.',
+            403: 'Этот аккаунт не может публиковать вопросы. Войдите как пациент и повторите попытку.',
+            409: 'Такой логин уже занят. Попробуйте другой.',
+            422: 'Пожалуйста, проверьте заполнение полей формы.',
+          },
+        })
+        const mappedFieldErrors = mapQuestionFieldErrors(resolvedError.fieldErrors)
+        if (Object.keys(mappedFieldErrors).length > 0) {
+          setFieldErrors((current) => ({ ...current, ...mappedFieldErrors }))
+        }
+        setWizardError(resolvedError.formError)
+      } finally {
+        setIsQuestionSubmitting(false)
+      }
+    })
+  }
+
   const handleProfileSubmit = async () => {
     const validationErrors = validateProfileData()
     if (Object.keys(validationErrors).length > 0) {
@@ -526,7 +604,7 @@ export function AskDoctorWizardModal({
       return
     }
 
-    openAuthModal('register')
+    await registerAndCreateQuestion()
   }
 
   const handleAuthLogin = async (event) => {
@@ -660,7 +738,7 @@ export function AskDoctorWizardModal({
           {wizardMessage ? <div className="ask-wizard-success">{wizardMessage}</div> : null}
 
           {step === WIZARD_STEPS.QUESTION ? (
-            <div className="ask-wizard-grid">
+            <div className={`ask-wizard-grid ask-step-panel ${stepTransitionDirection === 'backward' ? 'is-backward' : ''}`}>
               <label className="ask-wizard-field">
                 <span>Выберите врача*</span>
                 <select
@@ -740,7 +818,7 @@ export function AskDoctorWizardModal({
           ) : null}
 
           {step === WIZARD_STEPS.FORMAT ? (
-            <div className="ask-wizard-grid">
+            <div className={`ask-wizard-grid ask-step-panel ${stepTransitionDirection === 'backward' ? 'is-backward' : ''}`}>
               <h3 className="ask-wizard-step-title">Формат вопроса</h3>
 
               <button
@@ -787,7 +865,7 @@ export function AskDoctorWizardModal({
           ) : null}
 
           {step === WIZARD_STEPS.PRICE ? (
-            <div className="ask-wizard-grid">
+            <div className={`ask-wizard-grid ask-step-panel ${stepTransitionDirection === 'backward' ? 'is-backward' : ''}`}>
               <h3 className="ask-wizard-step-title">Выберите стоимость вопроса</h3>
               <p className="ask-wizard-note">Вы определяете уровень поддержки врачей, которые возьмут ваш вопрос в работу.</p>
 
@@ -845,7 +923,7 @@ export function AskDoctorWizardModal({
           ) : null}
 
           {step === WIZARD_STEPS.PROFILE ? (
-            <div className="ask-wizard-grid">
+            <div className={`ask-wizard-grid ask-step-panel ${stepTransitionDirection === 'backward' ? 'is-backward' : ''}`}>
               <h3 className="ask-wizard-step-title">Спроси врача</h3>
               <p className="ask-wizard-note">Необходимо предоставить врачам как можно более полную информацию о себе.</p>
 
